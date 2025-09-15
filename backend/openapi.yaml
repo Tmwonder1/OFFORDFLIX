@@ -1,0 +1,255 @@
+openapi: 3.0.3
+info:
+  title: Offordflix API
+  description: A streaming media API that provides movie and TV show streaming sources from multiple providers
+  version: 1.0.0
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+servers:
+  - url: http://localhost:{port}
+    description: Local development server
+    variables:
+      port:
+        default: '3000'
+        description: Port number
+  - url: https://your-production-domain.com
+    description: Production server
+paths:
+  /:
+    get:
+      summary: API Information
+      description: Get basic information about the API, including available routes and licensing
+      tags:
+        - Info
+      responses:
+        '200':
+          description: API information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  home:
+                    type: string
+                    description: API name
+                  routes:
+                    type: string
+                    description: Available routes information
+                  information:
+                    type: string
+                    description: General API information
+                  license:
+                    type: string
+                    description: License information
+                  source:
+                    type: string
+                    description: Source code information
+  /movie/{tmdbId}:
+    get:
+      summary: Get Movie Streaming Sources
+      description: Get streaming sources for a movie using TMDB ID
+      tags:
+        - Movies
+      parameters:
+        - name: tmdbId
+          in: path
+          required: true
+          description: The Movie Database (TMDB) ID of the movie
+          schema:
+            type: string
+            pattern: '^[0-9]+$'
+            example: '550'
+      responses:
+        '200':
+          description: Movie streaming sources found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaResponse'
+        '405':
+          description: Invalid movie ID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Movie not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /tv/{tmdbId}:
+    get:
+      summary: Get TV Show Episode Streaming Sources
+      description: Get streaming sources for a specific TV show episode using TMDB ID
+      tags:
+        - TV Shows
+      parameters:
+        - name: tmdbId
+          in: path
+          required: true
+          description: The Movie Database (TMDB) ID of the TV show
+          schema:
+            type: string
+            pattern: '^[0-9]+$'
+            example: '1399'
+        - name: s
+          in: query
+          required: true
+          description: Season number
+          schema:
+            type: string
+            pattern: '^[0-9]+$'
+            example: '1'
+        - name: e
+          in: query
+          required: true
+          description: Episode number
+          schema:
+            type: string
+            pattern: '^[0-9]+$'
+            example: '1'
+      responses:
+        '200':
+          description: TV episode streaming sources found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaResponse'
+        '405':
+          description: Invalid TV show ID, season, or episode
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: TV show or episode not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /cache-stats:
+    get:
+      summary: Get Cache Statistics
+      description: Get statistics about the API's caching performance
+      tags:
+        - System
+      responses:
+        '200':
+          description: Cache statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cacheEnabled:
+                    type: boolean
+                    description: Whether caching is enabled
+                    example: true
+                  ttl:
+                    type: string
+                    description: Time to live for cached items
+                    example: "3 hours (10800 seconds)"
+                  hitCount:
+                    type: integer
+                    description: Number of cache hits
+                  missCount:
+                    type: integer
+                    description: Number of cache misses
+                  hitRate:
+                    type: number
+                    format: float
+                    description: Cache hit rate as a percentage
+components:
+  schemas:
+    MediaResponse:
+      type: object
+      properties:
+        files:
+          type: array
+          description: Array of streaming file sources
+          items:
+            $ref: '#/components/schemas/StreamingFile'
+        subtitles:
+          type: array
+          description: Array of subtitle sources
+          items:
+            $ref: '#/components/schemas/Subtitle'
+        errors:
+          type: array
+          description: Array of errors (only present in debug mode)
+          items:
+            type: object
+    StreamingFile:
+      type: object
+      properties:
+        file:
+          type: string
+          format: uri
+          description: Direct link to the streaming file
+          example: "https://example.com/stream.m3u8"
+        quality:
+          type: string
+          description: Video quality
+          example: "1080p"
+        type:
+          type: string
+          description: File type or format
+          example: "hls"
+    Subtitle:
+      type: object
+      properties:
+        url:
+          type: string
+          format: uri
+          description: URL to the subtitle file
+          example: "https://example.com/subtitles.vtt"
+        language:
+          type: string
+          description: Language code of the subtitle
+          example: "en"
+        label:
+          type: string
+          description: Human-readable language label
+          example: "English"
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+        type:
+          type: string
+          description: Error type
+          enum: ["user", "system"]
+        code:
+          type: integer
+          description: HTTP status code
+        hint:
+          type: string
+          description: Helpful hint for resolving the error
+        showToUser:
+          type: boolean
+          description: Whether this error should be shown to end users
+        capturable:
+          type: boolean
+          description: Whether this error should be captured for monitoring
+tags:
+  - name: Info
+    description: API information endpoints
+  - name: Movies
+    description: Movie streaming endpoints
+  - name: TV Shows
+    description: TV show streaming endpoints
+  - name: System
+    description: System monitoring endpoints
+
+
+
+
+
+
+
+
+
