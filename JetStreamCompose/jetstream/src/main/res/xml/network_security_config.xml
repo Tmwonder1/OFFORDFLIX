@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">localhost</domain>
+        <domain includeSubdomains="true">10.0.2.2</domain>
+        <domain includeSubdomains="true">192.168.1.17</domain>
+        <domain includeSubdomains="true">streamta.site</domain>
+        <domain includeSubdomains="true">wyzie.ru</domain>
+        <domain includeSubdomains="true">niggaflix.xyz</domain>
+        <domain includeSubdomains="true">queenselti.me</domain>
+        <domain includeSubdomains="true">vidrock.store</domain>
+        <domain includeSubdomains="true">vdrk.site</domain>
+        <domain includeSubdomains="true">hls1.vdrk.site</domain>
+        <domain includeSubdomains="true">doile378vtt.com</domain>
+        <domain includeSubdomains="true">i-arch-400.doile378vtt.com</domain>
+        <domain includeSubdomains="true">premilkyway.com</domain>
+        <domain includeSubdomains="true">54pkdcyxbsxbermn.premilkyway.com</domain>
+        <domain includeSubdomains="true">proxy.rgshows.me</domain>
+        <domain includeSubdomains="true">megacdn.co</domain>
+        <domain includeSubdomains="true">f1.megacdn.co</domain>
+        <domain includeSubdomains="true">tapecontent.net</domain>
+        <domain includeSubdomains="true">861614887.tapecontent.net</domain>
+        <domain includeSubdomains="true">sub.wyzie.ru</domain>
+        <domain includeSubdomains="true">j7fqjm25xt.premilkyway.com</domain>
+        <domain includeSubdomains="true">tmstr4.shadowlandschronicles.com</domain>
+        <domain includeSubdomains="true">shadowlandschronicles.com</domain>
+    </domain-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system"/>
+        </trust-anchors>
+    </base-config>
+</network-security-config>
+
+
+
