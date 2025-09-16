@@ -169,3 +169,148 @@ export async function getTvFromTmdb(tmdb_id, season, episode) {
         );
     }
 }
+
+/**
+ * Search for movies and TV shows using TMDB API
+ * @param {string} query - Search query
+ * @param {number} page - Page number (default: 1)
+ * @returns {Promise<Object|ErrorObject>} Search results or Error
+ */
+export async function searchContent(query, page = 1) {
+    if (!query || query.trim().length === 0) {
+        return new ErrorObject(
+            'Search query is required',
+            'user',
+            400,
+            'Please provide a search query',
+            true,
+            false
+        );
+    }
+
+    try {
+        // Search both movies and TV shows
+        const [movieResponse, tvResponse] = await Promise.all([
+            fetch(`https://api.themoviedb.org/3/search/movie?api_key=${apiKey}&query=${encodeURIComponent(query)}&page=${page}`),
+            fetch(`https://api.themoviedb.org/3/search/tv?api_key=${apiKey}&query=${encodeURIComponent(query)}&page=${page}`)
+        ]);
+
+        if (movieResponse.status !== 200 || tvResponse.status !== 200) {
+            return new ErrorObject(
+                'Search failed',
+                'backend',
+                500,
+                'Unable to search TMDB',
+                true,
+                false
+            );
+        }
+
+        const movieData = await movieResponse.json();
+        const tvData = await tvResponse.json();
+
+        // Format results
+        const movies = movieData.results.map(movie => ({
+            id: movie.id,
+            type: 'movie',
+            title: movie.title,
+            name: movie.title,
+            overview: movie.overview,
+            poster_path: movie.poster_path,
+            backdrop_path: movie.backdrop_path,
+            release_date: movie.release_date,
+            vote_average: movie.vote_average,
+            genre_ids: movie.genre_ids
+        }));
+
+        const tvShows = tvData.results.map(tv => ({
+            id: tv.id,
+            type: 'tv',
+            title: tv.name,
+            name: tv.name,
+            overview: tv.overview,
+            poster_path: tv.poster_path,
+            backdrop_path: tv.backdrop_path,
+            first_air_date: tv.first_air_date,
+            vote_average: tv.vote_average,
+            genre_ids: tv.genre_ids
+        }));
+
+        return {
+            query: query,
+            page: page,
+            total_results: movieData.total_results + tvData.total_results,
+            total_pages: Math.max(movieData.total_pages, tvData.total_pages),
+            results: [...movies, ...tvShows]
+        };
+    } catch (e) {
+        return new ErrorObject(
+            'Search error: ' + e.message,
+            'backend',
+            500,
+            undefined,
+            true,
+            true
+        );
+    }
+}
+
+/**
+ * Get trending content from TMDB API
+ * @param {string} type - 'movie' or 'tv' or 'all' (default: 'all')
+ * @param {string} timeWindow - 'day' or 'week' (default: 'week')
+ * @param {number} page - Page number (default: 1)
+ * @returns {Promise<Object|ErrorObject>} Trending results or Error
+ */
+export async function getTrendingContent(type = 'all', timeWindow = 'week', page = 1) {
+    try {
+        const url = `https://api.themoviedb.org/3/trending/${type}/${timeWindow}?api_key=${apiKey}&page=${page}`;
+        const response = await fetch(url);
+        
+        if (response.status !== 200) {
+            return new ErrorObject(
+                'Failed to get trending content',
+                'backend',
+                500,
+                'Unable to fetch trending data from TMDB',
+                true,
+                false
+            );
+        }
+
+        const data = await response.json();
+
+        // Format results with consistent structure
+        const results = data.results.map(item => ({
+            id: item.id,
+            type: item.media_type || type,
+            title: item.title || item.name,
+            name: item.title || item.name,
+            overview: item.overview,
+            poster_path: item.poster_path,
+            backdrop_path: item.backdrop_path,
+            release_date: item.release_date || item.first_air_date,
+            vote_average: item.vote_average,
+            genre_ids: item.genre_ids,
+            popularity: item.popularity
+        }));
+
+        return {
+            type: type,
+            time_window: timeWindow,
+            page: page,
+            total_results: data.total_results,
+            total_pages: data.total_pages,
+            results: results
+        };
+    } catch (e) {
+        return new ErrorObject(
+            'Trending error: ' + e.message,
+            'backend',
+            500,
+            undefined,
+            true,
+            true
+        );
+    }
+}

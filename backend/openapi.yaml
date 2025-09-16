@@ -34,8 +34,21 @@ paths:
                     type: string
                     description: API name
                   routes:
-                    type: string
-                    description: Available routes information
+                    type: object
+                    description: Available API routes
+                    properties:
+                      MOVIE:
+                        type: string
+                        example: "/movie/:tmdbID"
+                      TV:
+                        type: string
+                        example: "/tv/:tmdbID?s=seasonNumber&e=episodeNumber"
+                      SEARCH:
+                        type: string
+                        example: "/search?q=query&page=1"
+                      TRENDING:
+                        type: string
+                        example: "/trending?type=all&time_window=week&page=1"
                   information:
                     type: string
                     description: General API information
@@ -161,6 +174,119 @@ paths:
                     type: number
                     format: float
                     description: Cache hit rate as a percentage
+  /search:
+    get:
+      summary: Search Movies and TV Shows
+      description: Search for movies and TV shows using TMDB API
+      tags:
+        - Search
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: Search query
+          schema:
+            type: string
+            example: "dune"
+        - name: page
+          in: query
+          required: false
+          description: Page number for pagination
+          schema:
+            type: integer
+            default: 1
+            example: 1
+      responses:
+        '200':
+          description: Search results
+          headers:
+            Cache-Control:
+              description: Caching policy
+              schema:
+                type: string
+                example: "public, max-age=600, stale-while-revalidate=300"
+            ETag:
+              description: Entity tag for caching
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '400':
+          description: Bad request (missing query)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitErrorResponse'
+  /trending:
+    get:
+      summary: Get Trending Content
+      description: Get trending movies and TV shows from TMDB API
+      tags:
+        - Trending
+      parameters:
+        - name: type
+          in: query
+          required: false
+          description: Content type to fetch
+          schema:
+            type: string
+            enum: [movie, tv, all]
+            default: all
+            example: "movie"
+        - name: time_window
+          in: query
+          required: false
+          description: Time window for trending content
+          schema:
+            type: string
+            enum: [day, week]
+            default: week
+            example: "week"
+        - name: page
+          in: query
+          required: false
+          description: Page number for pagination
+          schema:
+            type: integer
+            default: 1
+            example: 1
+      responses:
+        '200':
+          description: Trending content
+          headers:
+            Cache-Control:
+              description: Caching policy
+              schema:
+                type: string
+                example: "public, max-age=600, stale-while-revalidate=300"
+            ETag:
+              description: Entity tag for caching
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TrendingResponse'
+        '400':
+          description: Bad request (invalid parameters)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RateLimitErrorResponse'
 components:
   schemas:
     MediaResponse:
@@ -235,6 +361,124 @@ components:
         capturable:
           type: boolean
           description: Whether this error should be captured for monitoring
+    SearchResponse:
+      type: object
+      properties:
+        query:
+          type: string
+          description: The search query
+          example: "dune"
+        page:
+          type: integer
+          description: Current page number
+          example: 1
+        total_results:
+          type: integer
+          description: Total number of search results
+          example: 1074
+        total_pages:
+          type: integer
+          description: Total number of pages
+          example: 54
+        results:
+          type: array
+          description: Array of search results
+          items:
+            $ref: '#/components/schemas/ContentItem'
+    TrendingResponse:
+      type: object
+      properties:
+        type:
+          type: string
+          description: Content type requested
+          enum: [movie, tv, all]
+          example: "movie"
+        time_window:
+          type: string
+          description: Time window for trending content
+          enum: [day, week]
+          example: "week"
+        page:
+          type: integer
+          description: Current page number
+          example: 1
+        total_results:
+          type: integer
+          description: Total number of trending results
+          example: 10000
+        total_pages:
+          type: integer
+          description: Total number of pages
+          example: 500
+        results:
+          type: array
+          description: Array of trending content
+          items:
+            $ref: '#/components/schemas/ContentItem'
+    ContentItem:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: TMDB ID of the content
+          example: 438631
+        type:
+          type: string
+          description: Content type
+          enum: [movie, tv]
+          example: "movie"
+        title:
+          type: string
+          description: Title of the content
+          example: "Dune"
+        name:
+          type: string
+          description: Name of the content (same as title)
+          example: "Dune"
+        overview:
+          type: string
+          description: Plot summary
+          example: "Paul Atreides, a brilliant and gifted young man..."
+        poster_path:
+          type: string
+          description: Relative path to poster image on TMDB
+          example: "/d5NXSklXo0qyIYkgV94XAgMIckC.jpg"
+        backdrop_path:
+          type: string
+          description: Relative path to backdrop image on TMDB
+          example: "/zRKQW58MBEY078AxkHxEJzUskCl.jpg"
+        release_date:
+          type: string
+          format: date
+          description: Release date (for movies) or first air date (for TV)
+          example: "2021-09-15"
+        vote_average:
+          type: number
+          format: float
+          description: Average user rating
+          example: 7.781
+        genre_ids:
+          type: array
+          description: Array of genre IDs
+          items:
+            type: integer
+          example: [878, 12]
+        popularity:
+          type: number
+          format: float
+          description: Popularity score (trending only)
+          example: 555.0944
+    RateLimitErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Rate limit error message
+          example: "Too many requests from this IP, please try again later."
+        hint:
+          type: string
+          description: Rate limit information
+          example: "Rate limit: 50 requests per 5 minutes"
 tags:
   - name: Info
     description: API information endpoints
@@ -242,6 +486,10 @@ tags:
     description: Movie streaming endpoints
   - name: TV Shows
     description: TV show streaming endpoints
+  - name: Search
+    description: Content search endpoints
+  - name: Trending
+    description: Trending content endpoints
   - name: System
     description: System monitoring endpoints
 
