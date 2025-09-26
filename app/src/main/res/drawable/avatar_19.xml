@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp"
+    android:height="120dp"
+    android:viewportWidth="120"
+    android:viewportHeight="120">
+    
+    <!-- Background circle - kid-friendly color -->
+    <path
+        android:fillColor="#00BCD4"
+        android:pathData="M60,60m-60,0a60,60 0,1 1,120 0a60,60 0,1 1,-120 0" />
+    
+    <!-- Kid avatar with bigger head proportions -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M60,22 C72,22 82,32 82,44 C82,56 72,66 60,66 C48,66 38,56 38,44 C38,32 48,22 60,22 Z" />
+    
+    <!-- Happy eyes -->
+    <path
+        android:fillColor="#333333"
+        android:pathData="M50,38 C50,36 51,35 53,35 C55,35 56,36 56,38 C56,40 55,41 53,41 C51,41 50,40 50,38 Z" />
+    
+    <path
+        android:fillColor="#333333"
+        android:pathData="M64,38 C64,36 65,35 67,35 C69,35 70,36 70,38 C70,40 69,41 67,41 C65,41 64,40 64,38 Z" />
+    
+    <!-- Smile -->
+    <path
+        android:strokeWidth="2"
+        android:strokeColor="#333333"
+        android:pathData="M52,50 Q60,58 68,50" />
+    
+    <!-- Kid body (smaller) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M40,95 C40,82 48,70 60,70 C72,70 80,82 80,95 L80,105 L40,105 Z" />
+</vector>

@@ -1,0 +1,53 @@
+syntax = "proto3";
+
+option java_package = "com.offordflix.data.proto";
+option java_multiple_files = true;
+
+// Profile preferences for user customization
+message ProfilePreferences {
+  string preferred_language = 1;        // ISO language code (e.g., "en", "es")
+  bool auto_play_next = 2;             // Auto-play next episode
+  string default_quality = 3;          // Default video quality ("auto", "720p", "1080p")
+  bool subtitle_enabled = 4;           // Enable subtitles by default
+  string subtitle_language = 5;        // Default subtitle language
+  bool parental_controls_enabled = 6;  // Enable parental controls (for kids profile)
+}
+
+// Individual user profile
+message UserProfile {
+  string profile_id = 1;               // Unique profile identifier
+  string profile_name = 2;             // Display name for the profile
+  int32 avatar_id = 3;                 // Avatar image ID (1-24)
+  bool is_kids_profile = 4;            // Whether this is a kids profile
+  string backend_user_token = 5;       // Authentication token for backend
+  int64 created_at = 6;                // Profile creation timestamp
+  int64 last_used = 7;                 // Last time this profile was selected
+  ProfilePreferences preferences = 8;   // User preferences
+  int32 watch_time_limit_minutes = 9;  // Daily watch time limit (kids profiles)
+}
+
+// Complete profile list for the device
+message ProfileList {
+  repeated UserProfile profiles = 1;    // List of all profiles (max 5)
+  string active_profile_id = 2;        // Currently selected profile
+  int32 profile_count = 3;             // Number of profiles (for validation)
+  int64 last_modified = 4;             // Last modification timestamp
+  string device_id = 5;                // Unique device identifier
+}
+
+// Profile creation request
+message CreateProfileRequest {
+  string profile_name = 1;             // Desired profile name
+  int32 avatar_id = 2;                 // Selected avatar ID
+  bool is_kids_profile = 3;            // Whether to create as kids profile
+  ProfilePreferences preferences = 4;   // Initial preferences
+}
+
+// Profile validation result
+message ProfileValidationResult {
+  bool is_valid = 1;                   // Whether the profile data is valid
+  repeated string validation_errors = 2; // List of validation error messages
+  bool name_already_exists = 3;        // Whether the name is already taken
+  bool max_profiles_reached = 4;       // Whether 5 profile limit is reached
+}
+

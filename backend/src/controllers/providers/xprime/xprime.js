@@ -174,7 +174,12 @@ async function doPrimenetStuff(media, files, subtitles, errors) {
         return;
     }
 
-    data = await data.json();
+    try {
+        data = await data.json();
+    } catch (error) {
+        console.log('XPrime JSON parsing failed:', error.message);
+        return;
+    }
     if (data.url) {
         files.push({
             file: data.url,

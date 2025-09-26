@@ -1,25 +1,28 @@
 {
-  "name": "cinepro-backend",
-  "version": "0.0.1-beta",
-  "description": "Backend API of CinePro (scraper)",
-  "main": "index.js",
-  "homepage": "https://cinepro.mintlify.app/",
-  "bugs": {
-    "url": "https://github.com/cinepro-org/backend/issues"
-  },
+  "name": "offordflix-backend",
+  "version": "1.0.0",
+  "description": "Complete backend API for OnStream Android TV app with authentication, user management, content discovery, and streaming integration",
+  "main": "enhanced-index.js",
+  "homepage": "https://github.com/your-username/offordflix-backend",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "node --watch index.js --debug",
-    "main": "node --watch index.js",
-    "deploy": "node --watch index.js",
-    "start": "node --watch index.js"
+    "test": "node test-api.js",
+    "test:dev": "API_URL=http://localhost:3000 node test-api.js",
+    "dev": "node --watch enhanced-index.js --debug",
+    "start": "node enhanced-index.js",
+    "deploy": "node enhanced-index.js",
+    "standard": "node index.js",
+    "enhanced": "node enhanced-index.js",
+    "docker:build": "docker build -t offordflix-backend .",
+    "docker:run": "docker run -d -p 3000:3000 --env-file .env offordflix-backend",
+    "health": "curl -s http://localhost:3000/health | jq .",
+    "setup": "cp env.example .env && echo 'Please configure your .env file with TMDB_API_KEY'"
   },
   "author": {
-    "name": "CinePro Dev Team and All contributors",
-    "url": "https://github.com/orgs/cinepro-org/teams/devs/"
+    "name": "Offordflix Dev Team",
+    "url": "https://github.com/your-username"
   },
-  "license": "SEE LICENSE ON https://cinepro.mintlify.app/general-information/license#in-a-nutshell",
+  "license": "MIT",
   "dependencies": {
     "axios": "^1.7.9",
     "base-64": "^1.0.0",
@@ -34,17 +37,30 @@
     "wyzie-lib": "^2.2.5"
   },
   "keywords": [
-    "cinepro",
+    "onstream",
+    "android-tv",
+    "streaming",
     "movie",
-    "tv show",
-    "scraper"
+    "tv-show",
+    "scraper",
+    "api",
+    "tmdb",
+    "entertainment",
+    "authentication",
+    "user-management",
+    "watchlist",
+    "continue-watching"
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/cinepro-org/backend.git"
+    "url": "git+https://github.com/your-username/offordflix-backend.git"
   },
   "devDependencies": {
     "swagger-ui-cli": "^0.0.11",
     "swagger-ui-dist": "^5.29.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
   }
 }

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+ Splash Screen Configuration -->
+    
+    <!-- Splash screen background color -->
+    <color name="splash_background">#0A0A0A</color>
+    
+    <!-- Splash screen icon tint -->
+    <color name="splash_icon_tint">@color/md_theme_primary</color>
+    
+    <!-- Splash screen branding image -->
+    <drawable name="splash_icon">@drawable/app_banner</drawable>
+    
+    <!-- Animation duration for custom splash screen -->
+    <integer name="splash_duration_ms">2500</integer>
+    
+    <!-- Animation delays for sequential elements -->
+    <integer name="logo_animation_delay_ms">200</integer>
+    <integer name="logo_animation_duration_ms">1000</integer>
+    <integer name="tagline_animation_delay_ms">800</integer>
+    <integer name="tagline_animation_duration_ms">800</integer>
+</resources>
+
+

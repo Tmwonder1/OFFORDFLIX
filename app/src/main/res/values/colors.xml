@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Material 3 Dynamic Color scheme for TV -->
+    <color name="md_theme_primary">#BB86FC</color>
+    <color name="md_theme_onPrimary">#000000</color>
+    <color name="md_theme_primaryContainer">#3700B3</color>
+    <color name="md_theme_onPrimaryContainer">#FFFFFF</color>
+    <color name="md_theme_secondary">#03DAC6</color>
+    <color name="md_theme_onSecondary">#000000</color>
+    <color name="md_theme_secondaryContainer">#018786</color>
+    <color name="md_theme_onSecondaryContainer">#FFFFFF</color>
+    <color name="md_theme_tertiary">#CF6679</color>
+    <color name="md_theme_onTertiary">#000000</color>
+    <color name="md_theme_tertiaryContainer">#B00020</color>
+    <color name="md_theme_onTertiaryContainer">#FFFFFF</color>
+    <color name="md_theme_error">#F44336</color>
+    <color name="md_theme_errorContainer">#FFCDD2</color>
+    <color name="md_theme_onError">#FFFFFF</color>
+    <color name="md_theme_onErrorContainer">#D32F2F</color>
+    <color name="md_theme_background">#121212</color>
+    <color name="md_theme_onBackground">#FFFFFF</color>
+    <color name="md_theme_surface">#1E1E1E</color>
+    <color name="md_theme_onSurface">#FFFFFF</color>
+    <color name="md_theme_surfaceVariant">#2D2D2D</color>
+    <color name="md_theme_onSurfaceVariant">#E0E0E0</color>
+    <color name="md_theme_outline">#757575</color>
+    <color name="md_theme_inverseOnSurface">#121212</color>
+    <color name="md_theme_inverseSurface">#FFFFFF</color>
+    <color name="md_theme_inversePrimary">#6200EE</color>
+</resources>
+
+
