@@ -48,7 +48,7 @@ fun AvatarImage(
     
     Box(
         modifier = modifier
-            .size(size.dp)
+            .size(size.dp.dp)
             .clip(CircleShape)
             .border(
                 width = if (isSelected) 4.dp else 2.dp,
@@ -56,7 +56,7 @@ fun AvatarImage(
                 shape = CircleShape
             )
             .semantics {
-                contentDescription = "Avatar for $name"
+                this.contentDescription = "Avatar for $name"
             },
         contentAlignment = Alignment.Center
     ) {
@@ -65,19 +65,19 @@ fun AvatarImage(
             Image(
                 painter = painterResource(id = avatarResource),
                 contentDescription = getAvatarName(avatarId, isKidsAvatar),
-                modifier = Modifier.size(size.dp)
+                modifier = Modifier.size(size.dp.dp)
             )
         } else {
             // Fallback to colored circle with initials
             Box(
                 modifier = Modifier
-                    .size(size.dp)
+                    .size(size.dp.dp)
                     .background(backgroundColor, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = initial,
-                    fontSize = (size.dp.value * 0.4).sp,
+                    fontSize = (size.dp * 0.4).sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
                 )

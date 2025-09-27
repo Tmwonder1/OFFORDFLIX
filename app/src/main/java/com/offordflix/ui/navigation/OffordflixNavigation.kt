@@ -59,16 +59,14 @@ fun OffordflixNavigation(
         }
         
         composable(Screen.Home.route) { backStackEntry ->
-            val profileId = backStackEntry.arguments?.getString("profileId") ?: ""
+            val profileId = backStackEntry.arguments?.getString("profileId") ?: "default"
             HomeScreen(
                 profileId = profileId,
-                onNavigateToPlayer = { contentId ->
-                    navController.navigate(Screen.Player.createRoute(contentId))
+                onNavigateToPlayer = { content: com.offordflix.domain.model.VideoContent ->
+                    navController.navigate(Screen.Player.createRoute(content.id))
                 },
-                onNavigateBack = {
-                    navController.navigate(Screen.ProfileSelection.route) {
-                        popUpTo(Screen.Home.route) { inclusive = true }
-                    }
+                onNavigateToDetails = { content: com.offordflix.domain.model.VideoContent ->
+                    // TODO: Navigate to content details screen
                 }
             )
         }

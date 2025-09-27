@@ -72,11 +72,12 @@ fun HeroBanner(
                 )
         )
         
-        // Content information
+        // Content information - positioned higher within the hero area
         Column(
             modifier = Modifier
                 .align(Alignment.CenterStart)
                 .padding(48.dp)
+                .offset(y = (-100).dp)
                 .fillMaxWidth(0.5f),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -146,24 +147,27 @@ fun HeroBanner(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.padding(top = 16.dp)
             ) {
-                // Play button
+                // Play button (primary focus)
                 HeroBannerButton(
                     text = "▶ Play",
                     onClick = onPlay,
-                    isPrimary = true
+                    isPrimary = true,
+                    modifier = Modifier.focusable()
                 )
                 
                 // More info button
                 HeroBannerButton(
                     text = "ℹ More Info",
-                    onClick = onMoreInfo
+                    onClick = onMoreInfo,
+                    modifier = Modifier.focusable()
                 )
                 
                 // Watchlist button
                 HeroBannerButton(
                     text = if (isInWatchlist) "✓ In List" else "+ My List",
                     onClick = onAddToWatchlist,
-                    isActive = isInWatchlist
+                    isActive = isInWatchlist,
+                    modifier = Modifier.focusable()
                 )
             }
         }

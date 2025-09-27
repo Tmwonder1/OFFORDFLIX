@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
-import androidx.datastore.preferences.core.Preferences
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -51,7 +50,7 @@ class RecommendationAnalytics @Inject constructor(
                 RecommendationImpressions()
             } else {
                 try {
-                    Json.decodeFromString<RecommendationImpressions>(currentJson)
+                    json.decodeFromString<RecommendationImpressions>(currentJson)
                 } catch (e: Exception) {
                     RecommendationImpressions()
                 }
@@ -70,7 +69,7 @@ class RecommendationAnalytics @Inject constructor(
                     .take(500) // Keep last 500 impressions
             )
             
-            preferences[key] = Json.encodeToString(updatedData)
+            preferences[key] = json.encodeToString(updatedData)
         }
     }
     
@@ -90,7 +89,7 @@ class RecommendationAnalytics @Inject constructor(
                 RecommendationClicks()
             } else {
                 try {
-                    Json.decodeFromString<RecommendationClicks>(currentJson)
+                    json.decodeFromString<RecommendationClicks>(currentJson)
                 } catch (e: Exception) {
                     RecommendationClicks()
                 }
@@ -109,7 +108,7 @@ class RecommendationAnalytics @Inject constructor(
                     .take(500) // Keep last 500 clicks
             )
             
-            preferences[key] = Json.encodeToString(updatedData)
+            preferences[key] = json.encodeToString(updatedData)
         }
     }
     
@@ -129,7 +128,7 @@ class RecommendationAnalytics @Inject constructor(
                 RecommendationConversions()
             } else {
                 try {
-                    Json.decodeFromString<RecommendationConversions>(currentJson)
+                    json.decodeFromString<RecommendationConversions>(currentJson)
                 } catch (e: Exception) {
                     RecommendationConversions()
                 }
@@ -148,7 +147,7 @@ class RecommendationAnalytics @Inject constructor(
                     .take(200) // Keep last 200 conversions
             )
             
-            preferences[key] = Json.encodeToString(updatedData)
+            preferences[key] = json.encodeToString(updatedData)
         }
     }
     
@@ -165,7 +164,7 @@ class RecommendationAnalytics @Inject constructor(
         val impressions = try {
             val json = preferences[impressionsKey] ?: ""
             if (json.isBlank()) emptyList() else 
-                Json.decodeFromString<RecommendationImpressions>(json).impressions
+                this@RecommendationAnalytics.json.decodeFromString<RecommendationImpressions>(json).impressions
         } catch (e: Exception) {
             emptyList()
         }
@@ -173,7 +172,7 @@ class RecommendationAnalytics @Inject constructor(
         val clicks = try {
             val json = preferences[clicksKey] ?: ""
             if (json.isBlank()) emptyList() else 
-                Json.decodeFromString<RecommendationClicks>(json).clicks
+                this@RecommendationAnalytics.json.decodeFromString<RecommendationClicks>(json).clicks
         } catch (e: Exception) {
             emptyList()
         }
@@ -181,7 +180,7 @@ class RecommendationAnalytics @Inject constructor(
         val conversions = try {
             val json = preferences[conversionsKey] ?: ""
             if (json.isBlank()) emptyList() else 
-                Json.decodeFromString<RecommendationConversions>(json).conversions
+                this@RecommendationAnalytics.json.decodeFromString<RecommendationConversions>(json).conversions
         } catch (e: Exception) {
             emptyList()
         }
@@ -242,7 +241,7 @@ class RecommendationAnalytics @Inject constructor(
                 RecommendationType.values().toList()
             } else {
                 try {
-                    val clicksData = Json.decodeFromString<RecommendationClicks>(clicksJson)
+                    val clicksData = this@RecommendationAnalytics.json.decodeFromString<RecommendationClicks>(clicksJson)
                     clicksData.clicks
                         .groupBy { it.recommendationType }
                         .mapValues { it.value.size }

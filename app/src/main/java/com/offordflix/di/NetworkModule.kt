@@ -5,10 +5,13 @@ import com.offordflix.data.api.TmdbApi
 import com.offordflix.data.local.WatchlistDataStore
 import com.offordflix.data.repository.ContentDiscoveryRepository
 import com.offordflix.data.repository.WatchlistRepository
+import com.offordflix.data.repository.ContentFilterRepository
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import dagger.hilt.android.qualifiers.ApplicationContext
+import android.content.Context
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -85,13 +88,22 @@ object NetworkModule {
     }
 
     /**
+     * Provide ContentFilterRepository.
+     */
+    @Provides
+    @Singleton
+    fun provideContentFilterRepository(): ContentFilterRepository {
+        return ContentFilterRepository()
+    }
+
+    /**
      * Provide ContentDiscoveryRepository.
      */
     @Provides
     @Singleton
     fun provideContentDiscoveryRepository(
         tmdbApi: TmdbApi,
-        contentFilterRepository: com.offordflix.data.repository.ContentFilterRepository
+        contentFilterRepository: ContentFilterRepository
     ): ContentDiscoveryRepository {
         return ContentDiscoveryRepository(tmdbApi, contentFilterRepository)
     }
@@ -113,7 +125,7 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideWatchlistDataStore(
-        context: android.content.Context
+        @ApplicationContext context: Context
     ): WatchlistDataStore {
         return WatchlistDataStore(context)
     }

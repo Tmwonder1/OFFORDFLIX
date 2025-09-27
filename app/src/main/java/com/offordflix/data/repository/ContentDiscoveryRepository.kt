@@ -21,7 +21,7 @@ class ContentDiscoveryRepository @Inject constructor(
 ) {
     
     companion object {
-        private const val API_KEY = "your_tmdb_api_key_here" // TODO: Move to BuildConfig
+        private const val API_KEY = "df26f7a61a2c85d4a80d5239f7192d70" // TMDB API Key
     }
     
     /**

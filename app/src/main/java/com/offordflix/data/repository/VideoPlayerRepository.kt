@@ -15,7 +15,7 @@ import javax.inject.Singleton
 @Singleton
 class VideoPlayerRepository @Inject constructor() {
     
-    private val backendBaseUrl = "http://localhost:3000" // TODO: Get from config
+    private val backendBaseUrl = "http://192.168.1.17:3000" // Updated for network access
     
     /**
      * Get streaming URL for a movie.

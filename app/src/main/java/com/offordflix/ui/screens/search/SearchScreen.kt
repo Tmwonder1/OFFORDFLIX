@@ -85,8 +85,9 @@ fun SearchScreen(
                 LoadingResults()
             }
             uiState.error != null -> {
+                val error = uiState.error!!
                 ErrorResults(
-                    error = uiState.error,
+                    error = error,
                     onRetry = viewModel::search
                 )
             }

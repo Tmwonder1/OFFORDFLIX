@@ -119,11 +119,12 @@ fun ProfileSelectionScreen(
     
     // Edit profile dialog
     if (uiState.showEditProfile && uiState.editingProfile != null) {
+        val editingProfile = uiState.editingProfile!!
         EditProfileDialog(
-            profile = uiState.editingProfile,
+            profile = editingProfile,
             existingProfiles = profiles,
             onUpdateProfile = { name, avatarId ->
-                viewModel.updateProfile(uiState.editingProfile.id, name, avatarId)
+                viewModel.updateProfile(editingProfile.id, name, avatarId)
             },
             onDismiss = {
                 viewModel.hideEditProfile()

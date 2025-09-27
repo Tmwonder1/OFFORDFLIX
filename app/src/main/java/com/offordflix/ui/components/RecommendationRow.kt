@@ -3,6 +3,9 @@ package com.offordflix.ui.components
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.tv.foundation.lazy.list.TvLazyRow
+import androidx.tv.foundation.lazy.list.itemsIndexed as tvItemsIndexed
+import androidx.tv.foundation.lazy.list.rememberTvLazyListState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -62,12 +65,14 @@ fun RecommendedForYouRow(
             }
         }
         
-        // Content row
-        LazyRow(
+        // Content row (TV-optimized)
+        val listState = rememberTvLazyListState()
+        TvLazyRow(
+            state = listState,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(horizontal = 48.dp)
         ) {
-            items(content) { videoContent ->
+            tvItemsIndexed(content) { index, videoContent ->
                 ContentCard(
                     content = videoContent,
                     onClick = { onContentClick(videoContent) },
@@ -79,7 +84,8 @@ fun RecommendedForYouRow(
                             onAddToWatchlist(videoContent)
                         }
                     },
-                    isInWatchlist = watchlist.any { it.id == videoContent.id }
+                    isInWatchlist = watchlist.any { it.id == videoContent.id },
+                    initiallyRequestFocus = index == 0
                 )
             }
         }
@@ -130,12 +136,14 @@ fun BecauseYouWatchedRow(
             }
         }
         
-        // Content row
-        LazyRow(
+        // Content row (TV-optimized)
+        val listState = rememberTvLazyListState()
+        TvLazyRow(
+            state = listState,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(horizontal = 48.dp)
         ) {
-            items(content) { videoContent ->
+            tvItemsIndexed(content) { index, videoContent ->
                 ContentCard(
                     content = videoContent,
                     onClick = { onContentClick(videoContent) },
@@ -147,7 +155,8 @@ fun BecauseYouWatchedRow(
                             onAddToWatchlist(videoContent)
                         }
                     },
-                    isInWatchlist = watchlist.any { it.id == videoContent.id }
+                    isInWatchlist = watchlist.any { it.id == videoContent.id },
+                    initiallyRequestFocus = index == 0
                 )
             }
         }
@@ -198,12 +207,14 @@ fun MoreLikeGenreRow(
             }
         }
         
-        // Content row
-        LazyRow(
+        // Content row (TV-optimized)
+        val listState = rememberTvLazyListState()
+        TvLazyRow(
+            state = listState,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(horizontal = 48.dp)
         ) {
-            items(content) { videoContent ->
+            tvItemsIndexed(content) { index, videoContent ->
                 ContentCard(
                     content = videoContent,
                     onClick = { onContentClick(videoContent) },
@@ -215,7 +226,8 @@ fun MoreLikeGenreRow(
                             onAddToWatchlist(videoContent)
                         }
                     },
-                    isInWatchlist = watchlist.any { it.id == videoContent.id }
+                    isInWatchlist = watchlist.any { it.id == videoContent.id },
+                    initiallyRequestFocus = index == 0
                 )
             }
         }
@@ -265,12 +277,14 @@ fun PersonalizedTrendingRow(
             }
         }
         
-        // Content row
-        LazyRow(
+        // Content row (TV-optimized)
+        val listState = rememberTvLazyListState()
+        TvLazyRow(
+            state = listState,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             contentPadding = PaddingValues(horizontal = 48.dp)
         ) {
-            items(content) { videoContent ->
+            tvItemsIndexed(content) { index, videoContent ->
                 ContentCard(
                     content = videoContent,
                     onClick = { onContentClick(videoContent) },
@@ -282,7 +296,8 @@ fun PersonalizedTrendingRow(
                             onAddToWatchlist(videoContent)
                         }
                     },
-                    isInWatchlist = watchlist.any { it.id == videoContent.id }
+                    isInWatchlist = watchlist.any { it.id == videoContent.id },
+                    initiallyRequestFocus = index == 0
                 )
             }
         }

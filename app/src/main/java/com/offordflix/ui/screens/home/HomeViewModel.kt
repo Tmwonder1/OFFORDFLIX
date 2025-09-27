@@ -35,6 +35,14 @@ class HomeViewModel @Inject constructor(
     private var currentProfile: Profile? = null
     
     /**
+     * Initialize with profile and load content.
+     */
+    fun initializeWithProfile(profile: Profile) {
+        currentProfile = profile
+        loadContent()
+    }
+    
+    /**
      * Load all content for the home screen.
      */
     fun loadContent() {
@@ -42,17 +50,23 @@ class HomeViewModel @Inject constructor(
             _uiState.update { it.copy(isLoading = true, error = null) }
             
             try {
-                // Load content in parallel
+                // Load trending content first for hero banner
                 launch { loadTrendingContent() }
+                
+                // Load other content in parallel
                 launch { loadPopularMovies() }
                 launch { loadPopularTvShows() }
                 launch { loadTopRatedMovies() }
                 launch { loadTopRatedTvShows() }
                 launch { loadWatchlist() }
                 launch { loadContinueWatching() }
-                launch { loadRecommendations() }
-                launch { loadPersonalizedTrending() }
-                launch { loadFavoriteGenreRecommendations() }
+                
+                // Only load ML features if profile is set
+                if (currentProfile != null) {
+                    launch { loadRecommendations() }
+                    launch { loadPersonalizedTrending() }
+                    launch { loadFavoriteGenreRecommendations() }
+                }
                 
                 _uiState.update { it.copy(isLoading = false) }
             } catch (e: Exception) {
@@ -60,7 +74,7 @@ class HomeViewModel @Inject constructor(
                     it.copy(
                         isLoading = false, 
                         error = e.message ?: "Failed to load content"
-                    ) 
+                    )
                 }
             }
         }
@@ -175,35 +189,39 @@ class HomeViewModel @Inject constructor(
     }
     
     /**
-     * Add content to watchlist.
+     * Add content to watchlist with ML tracking.
      */
     fun addToWatchlist(content: VideoContent) {
         viewModelScope.launch {
-            currentProfile?.let { profile ->
-                watchlistRepository.addToWatchlist(profile.id, content)
-                    .onSuccess {
-                        loadWatchlist() // Refresh watchlist
+            try {
+                currentProfile?.let { profile ->
+                    watchlistRepository.addToWatchlist(profile.id, content)
+                    _uiState.update { state ->
+                        state.copy(watchlist = state.watchlist + content)
                     }
-                    .onFailure { e ->
-                        _uiState.update { it.copy(error = e.message) }
-                    }
+                    // Track for ML learning
+                    trackContentInteraction(content, InteractionType.LIKE)
+                }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = e.message) }
             }
         }
     }
     
     /**
-     * Remove content from watchlist.
+     * Remove content from watchlist with ML tracking.
      */
     fun removeFromWatchlist(content: VideoContent) {
         viewModelScope.launch {
-            currentProfile?.let { profile ->
-                watchlistRepository.removeFromWatchlist(profile.id, content.id)
-                    .onSuccess {
-                        loadWatchlist() // Refresh watchlist
+            try {
+                currentProfile?.let { profile ->
+                    watchlistRepository.removeFromWatchlist(profile.id, content.id)
+                    _uiState.update { state ->
+                        state.copy(watchlist = state.watchlist.filterNot { it.id == content.id })
                     }
-                    .onFailure { e ->
-                        _uiState.update { it.copy(error = e.message) }
-                    }
+                }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = e.message) }
             }
         }
     }
@@ -235,13 +253,19 @@ class HomeViewModel @Inject constructor(
      */
     private suspend fun loadRecommendations() {
         currentProfile?.let { profile ->
-            recommendationRepository.getRecommendedForYou(profile.id)
-                .catch { e ->
-                    _uiState.update { it.copy(error = e.message) }
-                }
-                .collect { recommendations ->
-                    _uiState.update { it.copy(recommendedForYou = recommendations) }
-                }
+            try {
+                recommendationRepository.getRecommendedForYou(profile.id)
+                    .catch { e ->
+                        // ML features are optional - don't fail the whole screen
+                        println("ML Recommendations failed: ${e.message}")
+                    }
+                    .collect { recommendations ->
+                        _uiState.update { it.copy(recommendedForYou = recommendations) }
+                    }
+            } catch (e: Exception) {
+                // Silently fail ML features to prevent white screen
+                println("ML Recommendations error: ${e.message}")
+            }
         }
     }
     
@@ -250,13 +274,19 @@ class HomeViewModel @Inject constructor(
      */
     private suspend fun loadPersonalizedTrending() {
         currentProfile?.let { profile ->
-            recommendationRepository.getPersonalizedTrending(profile.id)
-                .catch { e ->
-                    _uiState.update { it.copy(error = e.message) }
-                }
-                .collect { trending ->
-                    _uiState.update { it.copy(personalizedTrending = trending) }
-                }
+            try {
+                recommendationRepository.getPersonalizedTrending(profile.id)
+                    .catch { e ->
+                        // ML features are optional - don't fail the whole screen
+                        println("Personalized Trending failed: ${e.message}")
+                    }
+                    .collect { trending ->
+                        _uiState.update { it.copy(personalizedTrending = trending) }
+                    }
+            } catch (e: Exception) {
+                // Silently fail ML features to prevent white screen
+                println("Personalized Trending error: ${e.message}")
+            }
         }
     }
     
@@ -265,27 +295,33 @@ class HomeViewModel @Inject constructor(
      */
     private suspend fun loadFavoriteGenreRecommendations() {
         currentProfile?.let { profile ->
-            recommendationRepository.getFavoriteGenres(profile.id)
-                .catch { e ->
-                    _uiState.update { it.copy(error = e.message) }
-                }
-                .collect { favoriteGenres ->
-                    if (favoriteGenres.isNotEmpty()) {
-                        val topGenre = favoriteGenres.first()
-                        recommendationRepository.getMoreLikeGenre(profile.id, topGenre)
-                            .catch { e ->
-                                _uiState.update { it.copy(error = e.message) }
-                            }
-                            .collect { genreRecommendations ->
-                                _uiState.update { 
-                                    it.copy(
-                                        favoriteGenreRecommendations = genreRecommendations,
-                                        favoriteGenre = topGenre
-                                    ) 
-                                }
-                            }
+            try {
+                recommendationRepository.getFavoriteGenres(profile.id)
+                    .catch { e ->
+                        // ML features are optional - don't fail the whole screen
+                        println("Favorite Genres failed: ${e.message}")
                     }
-                }
+                    .collect { favoriteGenres ->
+                        if (favoriteGenres.isNotEmpty()) {
+                            val topGenre = favoriteGenres.first()
+                            recommendationRepository.getMoreLikeGenre(profile.id, topGenre)
+                                .catch { e ->
+                                    println("Genre Recommendations failed: ${e.message}")
+                                }
+                                .collect { genreRecommendations ->
+                                    _uiState.update { 
+                                        it.copy(
+                                            favoriteGenreRecommendations = genreRecommendations,
+                                            favoriteGenre = topGenre
+                                        ) 
+                                    }
+                                }
+                        }
+                    }
+            } catch (e: Exception) {
+                // Silently fail ML features to prevent white screen
+                println("Favorite Genre Recommendations error: ${e.message}")
+            }
         }
     }
     
@@ -364,13 +400,6 @@ class HomeViewModel @Inject constructor(
         getBecauseYouWatched(content)
     }
     
-    /**
-     * Enhanced watchlist operations with ML tracking.
-     */
-    override fun addToWatchlist(content: VideoContent) {
-        super.addToWatchlist(content)
-        trackContentInteraction(content, InteractionType.LIKE)
-    }
     
     /**
      * Clear error message.

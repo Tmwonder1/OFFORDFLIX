@@ -3,9 +3,13 @@ package com.offordflix.ui.components
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.ui.input.key.*
+import androidx.compose.ui.focus.onFocusEvent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -22,6 +26,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.offordflix.domain.model.VideoContent
+import androidx.compose.animation.core.*
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.graphicsLayer
 import com.offordflix.domain.model.ContentType
 
 /**
@@ -43,27 +52,65 @@ fun ContentCard(
     isInWatchlist: Boolean = false,
     showProgress: Boolean = false,
     progress: Float = 0f,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    initiallyRequestFocus: Boolean = false,
+    isManuallyFocused: Boolean = false
 ) {
-    var isFocused by remember { mutableStateOf(false) }
-    var showOverlay by remember { mutableStateOf(false) }
-    val focusRequester = remember { FocusRequester() }
+    // Use manual focus state instead of Android's focus system
+    val isFocused = isManuallyFocused
+    val showOverlay = isManuallyFocused
+    
+    // Focus is now working with manual state management
+    
+    // Subtle scale animation for focus
+    val scale by animateFloatAsState(
+        targetValue = if (isFocused) 1.1f else 1.0f,
+        animationSpec = tween(200, easing = EaseOutCubic),
+        label = "card_scale"
+    )
+    
+    // Simple focus state - no pulsing
+    
+    // Subtle glow colors
+    val glowAmbientColor = Color.White.copy(alpha = 0.3f)
+    val glowSpotColor = Color.White.copy(alpha = 0.5f)
     
     Card(
         modifier = modifier
-            .width(200.dp)
-            .height(300.dp)
-            .focusRequester(focusRequester)
-            .focusable()
-            .onFocusChanged { 
-                isFocused = it.isFocused
-                showOverlay = it.isFocused
+            .width(90.dp)
+            .height(135.dp)
+            .clickable { onClick() }
+            .scale(scale)
+            .graphicsLayer {
+                if (isFocused) {
+                    shadowElevation = 12f
+                    shape = RoundedCornerShape(8.dp)
+                    clip = false
+                    ambientShadowColor = glowAmbientColor
+                    spotShadowColor = glowSpotColor
+                } else {
+                    shadowElevation = 0f
+                }
             }
-            .clickable { onClick() },
+            .then(
+                if (isFocused) {
+                    Modifier
+                        .border(
+                            width = 2.dp,
+                            color = Color.White,
+                            shape = RoundedCornerShape(8.dp)
+                        )
+                } else {
+                    Modifier
+                }
+            ),
         elevation = CardDefaults.cardElevation(
-            defaultElevation = if (isFocused) 12.dp else 4.dp
+            defaultElevation = if (isFocused) 8.dp else 2.dp
         ),
-        shape = RoundedCornerShape(8.dp)
+        shape = RoundedCornerShape(8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.Transparent
+        )
     ) {
         Box(
             modifier = Modifier.fillMaxSize()
@@ -79,7 +126,7 @@ fun ContentCard(
             // Progress bar for continue watching
             if (showProgress && progress > 0) {
                 LinearProgressIndicator(
-                    progress = progress.coerceIn(0f, 1f),
+                    progress = { progress.coerceIn(0f, 1f) },
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
                         .fillMaxWidth()
@@ -89,49 +136,7 @@ fun ContentCard(
                 )
             }
             
-            // Content type indicator
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(8.dp)
-            ) {
-                Badge(
-                    modifier = Modifier.background(
-                        Color.Black.copy(alpha = 0.7f),
-                        RoundedCornerShape(4.dp)
-                    )
-                ) {
-                    Text(
-                        text = if (content.type == ContentType.MOVIE) "MOVIE" else "TV",
-                        color = Color.White,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                    )
-                }
-            }
-            
-            // Watchlist indicator
-            if (isInWatchlist) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .padding(8.dp)
-                ) {
-                    Icon(
-                        imageVector = androidx.compose.material.icons.Icons.Default.Favorite,
-                        contentDescription = "In Watchlist",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier
-                            .size(24.dp)
-                            .background(
-                                Color.Black.copy(alpha = 0.7f),
-                                RoundedCornerShape(12.dp)
-                            )
-                            .padding(4.dp)
-                    )
-                }
-            }
+            // Clean poster display - no overlays when not focused
             
             // Overlay with content info and actions (shown on focus)
             if (showOverlay) {
@@ -142,6 +147,40 @@ fun ContentCard(
                     isInWatchlist = isInWatchlist,
                     modifier = Modifier.align(Alignment.BottomCenter)
                 )
+            }
+        }
+        
+        // Prominent title display below card when focused
+        if (isFocused) {
+            Box(
+                modifier = Modifier
+                    .offset(y = 190.dp) // Position below the card
+                    .background(
+                        color = Color.Black.copy(alpha = 0.9f),
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .widthIn(max = 200.dp)
+            ) {
+                Column {
+                    Text(
+                        text = content.title,
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (content.voteAverage > 0) {
+                        Text(
+                            text = "★ ${String.format("%.1f", content.voteAverage)}",
+                            color = Color.Yellow,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
+                }
             }
         }
     }
