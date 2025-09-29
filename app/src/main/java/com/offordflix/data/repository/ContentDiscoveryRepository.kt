@@ -69,7 +69,10 @@ class ContentDiscoveryRepository @Inject constructor(
                         getGenres = { it.genres }
                     )
                 } ?: movies
-                emit(filteredMovies)
+                
+                // Enrich with logos from TMDB
+                val enrichedMovies = enrichContentWithLogos(filteredMovies)
+                emit(enrichedMovies)
             } else {
                 emit(emptyList())
             }
@@ -94,7 +97,10 @@ class ContentDiscoveryRepository @Inject constructor(
                         getGenres = { it.genres }
                     )
                 } ?: movies
-                emit(filteredMovies)
+                
+                // Enrich with logos from TMDB
+                val enrichedMovies = enrichContentWithLogos(filteredMovies)
+                emit(enrichedMovies)
             } else {
                 emit(emptyList())
             }
@@ -119,7 +125,10 @@ class ContentDiscoveryRepository @Inject constructor(
                         getGenres = { it.genres }
                     )
                 } ?: tvShows
-                emit(filteredTvShows)
+                
+                // Enrich with logos from TMDB
+                val enrichedTvShows = enrichContentWithLogos(filteredTvShows)
+                emit(enrichedTvShows)
             } else {
                 emit(emptyList())
             }
@@ -144,7 +153,10 @@ class ContentDiscoveryRepository @Inject constructor(
                         getGenres = { it.genres }
                     )
                 } ?: tvShows
-                emit(filteredTvShows)
+                
+                // Enrich with logos from TMDB
+                val enrichedTvShows = enrichContentWithLogos(filteredTvShows)
+                emit(enrichedTvShows)
             } else {
                 emit(emptyList())
             }
@@ -169,7 +181,10 @@ class ContentDiscoveryRepository @Inject constructor(
                         getGenres = { it.genres }
                     )
                 } ?: content
-                emit(filteredContent)
+                
+                // Enrich with logos from TMDB
+                val enrichedContent = enrichContentWithLogos(filteredContent)
+                emit(enrichedContent)
             } else {
                 emit(emptyList())
             }
@@ -199,7 +214,10 @@ class ContentDiscoveryRepository @Inject constructor(
                         getGenres = { it.genres }
                     )
                 } ?: content
-                emit(filteredContent)
+                
+                // Enrich with logos from TMDB
+                val enrichedContent = enrichContentWithLogos(filteredContent)
+                emit(enrichedContent)
             } else {
                 emit(emptyList())
             }
@@ -285,7 +303,9 @@ class ContentDiscoveryRepository @Inject constructor(
                 )
             } ?: allContent
             
-            emit(filteredContent)
+            // Enrich with logos from TMDB
+            val enrichedContent = enrichContentWithLogos(filteredContent)
+            emit(enrichedContent)
         } catch (e: Exception) {
             emit(emptyList())
         }
