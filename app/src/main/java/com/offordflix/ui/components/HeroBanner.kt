@@ -55,21 +55,11 @@ fun HeroBanner(
             contentScale = ContentScale.Crop
         )
         
-        // Gradient overlay
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.horizontalGradient(
-                        colors = listOf(
-                            Color.Black.copy(alpha = 0.8f),
-                            Color.Transparent,
-                            Color.Black.copy(alpha = 0.6f)
-                        ),
-                        startX = 0f,
-                        endX = 1000f
-                    )
-                )
+        // Left scrim overlay for text readability
+        FullWidthLeftScrimOverlay(
+            intensity = ScrimIntensity.Strong,
+            scrimWidthRatio = 0.65f,
+            modifier = Modifier.fillMaxSize()
         )
         
         // Content information - positioned higher within the hero area

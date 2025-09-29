@@ -1,6 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Offordflix</string>
+    
+    <!-- Scrim overlay content descriptions -->
+    <string name="backdrop_content_description">Backdrop image</string>
+    <string name="content_card_image_description">Content card image</string>
 </resources>
 
 
