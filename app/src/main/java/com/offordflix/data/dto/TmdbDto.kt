@@ -257,3 +257,25 @@ data class TmdbCrewDto(
     @SerialName("profile_path") val profilePath: String? = null
 )
 
+/**
+ * TMDB Images Response DTOs for logos, backdrops, posters.
+ */
+@Serializable
+data class TmdbImagesResponse(
+    val id: Int,
+    val backdrops: List<TmdbImageDto> = emptyList(),
+    val logos: List<TmdbImageDto> = emptyList(),
+    val posters: List<TmdbImageDto> = emptyList()
+)
+
+@Serializable
+data class TmdbImageDto(
+    @SerialName("aspect_ratio") val aspectRatio: Double,
+    val height: Int,
+    @SerialName("iso_639_1") val iso6391: String? = null,
+    @SerialName("file_path") val filePath: String,
+    @SerialName("vote_average") val voteAverage: Double = 0.0,
+    @SerialName("vote_count") val voteCount: Int = 0,
+    val width: Int
+)
+

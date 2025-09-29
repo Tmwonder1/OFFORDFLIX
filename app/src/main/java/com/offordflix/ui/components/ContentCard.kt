@@ -32,6 +32,7 @@ import androidx.compose.foundation.border
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import com.offordflix.domain.model.ContentType
+import android.util.Log
 
 /**
  * Content card component for displaying movies and TV shows.
@@ -62,9 +63,9 @@ fun ContentCard(
     
     // Focus is now working with manual state management
     
-    // Subtle scale animation for focus
+    // Disable scaling completely to prevent any overlap
     val scale by animateFloatAsState(
-        targetValue = if (isFocused) 1.1f else 1.0f,
+        targetValue = 1.0f, // No scaling at all
         animationSpec = tween(200, easing = EaseOutCubic),
         label = "card_scale"
     )
@@ -75,12 +76,16 @@ fun ContentCard(
     val glowAmbientColor = Color.White.copy(alpha = 0.3f)
     val glowSpotColor = Color.White.copy(alpha = 0.5f)
     
+    
     Card(
         modifier = modifier
             .width(90.dp)
             .height(135.dp)
-            .clickable { onClick() }
-            .scale(scale)
+            .clickable(
+                onClickLabel = "Play ${content.title}"
+            ) { 
+                onClick() 
+            }
             .graphicsLayer {
                 if (isFocused) {
                     shadowElevation = 12f

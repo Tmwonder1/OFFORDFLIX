@@ -20,6 +20,7 @@ interface TmdbApi {
         const val BACKDROP_SIZE = "w1280"
         const val POSTER_SIZE = "w500"
         const val PROFILE_SIZE = "w185"
+        const val LOGO_SIZE = "w500" // Standard size for logos
     }
     
     // Movies
@@ -173,5 +174,22 @@ interface TmdbApi {
         @Query("with_genres") withGenres: String? = null,
         @Query("without_genres") withoutGenres: String? = null
     ): Response<TmdbTvResponse>
+    
+    // Images
+    @GET("movie/{movie_id}/images")
+    suspend fun getMovieImages(
+        @Path("movie_id") movieId: Int,
+        @Query("api_key") apiKey: String,
+        @Query("language") language: String? = null,
+        @Query("include_image_language") includeImageLanguage: String? = "en,null"
+    ): Response<TmdbImagesResponse>
+    
+    @GET("tv/{tv_id}/images")
+    suspend fun getTvImages(
+        @Path("tv_id") tvId: Int,
+        @Query("api_key") apiKey: String,
+        @Query("language") language: String? = null,
+        @Query("include_image_language") includeImageLanguage: String? = "en,null"
+    ): Response<TmdbImagesResponse>
 }
 

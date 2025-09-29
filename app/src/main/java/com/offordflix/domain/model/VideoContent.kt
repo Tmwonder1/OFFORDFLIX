@@ -13,6 +13,7 @@ data class VideoContent(
     val tmdbId: String,
     val backdropUrl: String? = null,
     val posterUrl: String? = null,
+    val logoUrl: String? = null,
     val overview: String? = null,
     val releaseDate: String? = null,
     val runtime: Int? = null, // Duration in minutes

@@ -81,15 +81,31 @@ fun HeroBanner(
                 .fillMaxWidth(0.5f),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Title
-            Text(
-                text = content.title,
-                fontSize = 48.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
+            // Title - Use logo if available, otherwise text
+            var logoLoadError by remember { mutableStateOf(false) }
+            
+            if (content.logoUrl != null && !logoLoadError) {
+                AsyncImage(
+                    model = content.logoUrl,
+                    contentDescription = content.title,
+                    modifier = Modifier
+                        .height(80.dp)
+                        .widthIn(max = 400.dp),
+                    contentScale = ContentScale.Fit,
+                    onError = {
+                        logoLoadError = true
+                    }
+                )
+            } else {
+                Text(
+                    text = content.title,
+                    fontSize = 48.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
             
             // Type and rating
             Row(

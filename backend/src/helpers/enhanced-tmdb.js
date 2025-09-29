@@ -58,6 +58,21 @@ async function tmdbRequest(endpoint, params = {}) {
     }
 }
 
+// Helper function to extract logo from TMDB images
+function getLogoFromImages(images) {
+    if (!images || !images.logos || images.logos.length === 0) {
+        return null;
+    }
+    
+    // Get the best logo (highest vote average, or first if none voted)
+    const bestLogo = images.logos.reduce((best, current) => {
+        if (!best) return current;
+        return current.vote_average > best.vote_average ? current : best;
+    }, null);
+    
+    return bestLogo ? `${TMDB_IMAGE_BASE_URL}${bestLogo.file_path}` : null;
+}
+
 // Transform TMDB movie data to our format
 function transformMovie(tmdbMovie) {
     return {
@@ -67,6 +82,7 @@ function transformMovie(tmdbMovie) {
         overview: tmdbMovie.overview,
         poster_path: tmdbMovie.poster_path ? `${TMDB_IMAGE_BASE_URL}${tmdbMovie.poster_path}` : null,
         backdrop_path: tmdbMovie.backdrop_path ? `${TMDB_IMAGE_BASE_URL}${tmdbMovie.backdrop_path}` : null,
+        logo_path: getLogoFromImages(tmdbMovie.images),
         release_date: tmdbMovie.release_date || tmdbMovie.first_air_date,
         vote_average: tmdbMovie.vote_average,
         vote_count: tmdbMovie.vote_count,
@@ -83,7 +99,7 @@ function transformMovie(tmdbMovie) {
 export async function getMovieFromTmdb(tmdbId) {
     try {
         const data = await tmdbRequest(`/movie/${tmdbId}`, {
-            append_to_response: 'credits,videos,similar,reviews'
+            append_to_response: 'credits,videos,similar,reviews,images'
         });
 
         return {
@@ -123,7 +139,7 @@ export async function getMovieFromTmdb(tmdbId) {
 export async function getTvFromTmdb(tmdbId, season, episode) {
     try {
         const showData = await tmdbRequest(`/tv/${tmdbId}`, {
-            append_to_response: 'credits,videos,similar,reviews'
+            append_to_response: 'credits,videos,similar,reviews,images'
         });
 
         let episodeData = null;

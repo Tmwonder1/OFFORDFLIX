@@ -32,6 +32,7 @@ import com.offordflix.domain.model.VideoContent
 import com.offordflix.ui.components.ContentCard
 import com.offordflix.ui.components.HeroBanner
 import com.offordflix.data.ml.InteractionType
+import android.util.Log
 
 /**
  * Netflix-style home screen with fixed hero banner and animated content rows.
@@ -59,6 +60,10 @@ fun NetflixStyleHomeScreen(
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    
+    // Local UI state for in-place details overlay
+    var selectedContent by remember { mutableStateOf<VideoContent?>(null) }
+    var isDetailsVisible by remember { mutableStateOf(false) }
     
     // Initialize with profile and load content
     LaunchedEffect(profileId) {
@@ -102,28 +107,60 @@ fun NetflixStyleHomeScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        // Fixed Hero Banner Background
-        val heroContent = uiState.featuredContent 
-            ?: uiState.trendingContent.firstOrNull()
-            ?: uiState.popularMovies.firstOrNull()
-            ?: uiState.popularTvShows.firstOrNull()
+        // Dynamic Hero Banner - changes based on focused content
+        val heroContent = remember(currentRowIndex, currentItemIndex, uiState, selectedContent, isDetailsVisible) {
+            // When details overlay is visible, pin hero to the selected content
+            if (isDetailsVisible && selectedContent != null) {
+                return@remember selectedContent
+            }
+            if (contentRows.isNotEmpty() && currentRowIndex < contentRows.size) {
+                val currentRowContent = contentRows[currentRowIndex].second.take(10)
+                if (currentItemIndex < currentRowContent.size) {
+                    currentRowContent[currentItemIndex]
+                } else {
+                    // Fallback to first item in current row
+                    currentRowContent.firstOrNull()
+                }
+            } else {
+                // Fallback to featured content
+                uiState.featuredContent 
+                    ?: uiState.trendingContent.firstOrNull()
+                    ?: uiState.popularMovies.firstOrNull()
+                    ?: uiState.popularTvShows.firstOrNull()
+            }
+        }
         
         heroContent?.let { content ->
-            HeroBanner(
-                content = content,
-                onPlay = { 
-                    viewModel.trackContentInteraction(content, InteractionType.WATCH)
-                    onNavigateToPlayer(content) 
+            // Add smooth transition when hero content changes
+            AnimatedContent(
+                targetState = content,
+                transitionSpec = {
+                    fadeIn(animationSpec = tween(300)) togetherWith 
+                    fadeOut(animationSpec = tween(200))
                 },
-                onMoreInfo = { onNavigateToDetails(content) },
-                onAddToWatchlist = { viewModel.addToWatchlist(content) },
-                isInWatchlist = uiState.watchlist.any { it.id == content.id },
                 modifier = Modifier.fillMaxSize()
-            )
+            ) { targetContent ->
+                HeroBanner(
+                    content = targetContent,
+                    onPlay = { 
+                        viewModel.trackContentInteraction(targetContent, InteractionType.WATCH)
+                        onNavigateToPlayer(targetContent) 
+                    },
+                    onMoreInfo = {
+                        // Show in-place details overlay instead of navigation
+                        selectedContent = targetContent
+                        isDetailsVisible = true
+                        viewModel.onContentSelected(targetContent)
+                    },
+                    onAddToWatchlist = { viewModel.addToWatchlist(targetContent) },
+                    isInWatchlist = uiState.watchlist.any { it.id == targetContent.id },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
         }
         
         // Animated Content Rows Overlay with Global Key Handler
-        if (contentRows.isNotEmpty() && currentRowIndex < contentRows.size) {
+        if (!isDetailsVisible && contentRows.isNotEmpty() && currentRowIndex < contentRows.size) {
             val focusRequester = remember { FocusRequester() }
             
             // Request focus for key event handling
@@ -179,6 +216,19 @@ fun NetflixStyleHomeScreen(
                                         true
                                     } else false
                                 }
+                                Key.DirectionCenter, Key.Enter -> {
+                                    // Handle click/select action manually
+                                    val currentRow = contentRows.getOrNull(currentRowIndex)
+                                    val currentRowContent = currentRow?.second?.take(10)
+                                    if (currentRowContent != null && currentItemIndex < currentRowContent.size) {
+                                        val clickedContent = currentRowContent[currentItemIndex]
+                                        // Open inline details overlay
+                                        viewModel.onContentSelected(clickedContent)
+                                        selectedContent = clickedContent
+                                        isDetailsVisible = true
+                                    }
+                                    true
+                                }
                                 else -> false
                             }
                         } else false
@@ -203,6 +253,7 @@ fun NetflixStyleHomeScreen(
                 ) { targetIndex ->
                     if (targetIndex < contentRows.size) {
                         val (title, content) = contentRows[targetIndex]
+                        Log.d("NetflixHome", "Rendering ContentRowOverlay: title='$title', rowIndex=$targetIndex, focusedItem=$currentItemIndex, contentSize=${content.size}")
                         ContentRowOverlay(
                             title = title,
                             content = content,
@@ -210,8 +261,12 @@ fun NetflixStyleHomeScreen(
                             totalRows = contentRows.size,
                             focusedItemIndex = currentItemIndex,
                             onContentClick = { content ->
+                                // Open inline details overlay
+                                Log.d("NetflixHome", "onContentClick handler called with title='${content.title}', id=${content.id}")
                                 viewModel.onContentSelected(content)
-                                onNavigateToDetails(content)
+                                selectedContent = content
+                                isDetailsVisible = true
+                                Log.d("NetflixHome", "selectedContent updated to title='${selectedContent?.title}', id=${selectedContent?.id}")
                             },
                             onPlayClick = { content ->
                                 viewModel.trackContentInteraction(content, InteractionType.WATCH)
@@ -224,6 +279,30 @@ fun NetflixStyleHomeScreen(
                     }
                 }
             }
+        }
+        
+        // In-place Details Overlay - covers content rows area while keeping hero visible
+        val details = selectedContent
+        if (isDetailsVisible && details != null) {
+            Log.d("NetflixHome", "Rendering ContentDetailsOverlay for title='${details.title}', id=${details.id}")
+            ContentDetailsOverlay(
+                content = details,
+                isInWatchlist = uiState.watchlist.any { it.id == details.id },
+                onPlay = {
+                    viewModel.trackContentInteraction(details, InteractionType.WATCH)
+                    onNavigateToPlayer(details)
+                },
+                onToggleWatchlist = {
+                    if (uiState.watchlist.any { it.id == details.id }) {
+                        viewModel.removeFromWatchlist(details)
+                    } else {
+                        viewModel.addToWatchlist(details)
+                    }
+                },
+                onDismiss = {
+                    isDetailsVisible = false
+                }
+            )
         }
         
         // Loading State
@@ -348,26 +427,123 @@ private fun ContentRowOverlay(
         
         LazyRow(
             state = listState,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp) // Reset to original spacing
         ) {
             val limited = content.take(10)
-            itemsIndexed(limited) { index, videoContent ->
+            itemsIndexed(
+                items = limited,
+                key = { _, item -> item.id }
+            ) { index, videoContent ->
+                
                 ContentCard(
                     content = videoContent,
-                    onClick = { onContentClick(videoContent) },
-                    onPlayClick = { onPlayClick(videoContent) },
+                    onClick = { 
+                        // Clicks are now handled manually via D-pad center button
+                    },
+                    onPlayClick = { onPlayClick(limited[index]) }, // Use index-based lookup
                     onWatchlistClick = {
-                        if (watchlist.any { it.id == videoContent.id }) {
-                            onRemoveFromWatchlist(videoContent)
+                        val indexContent = limited[index]
+                        if (watchlist.any { it.id == indexContent.id }) {
+                            onRemoveFromWatchlist(indexContent)
                         } else {
-                            onAddToWatchlist(videoContent)
+                            onAddToWatchlist(indexContent)
                         }
                     },
-                    isInWatchlist = watchlist.any { it.id == videoContent.id },
-                    isManuallyFocused = index == focusedItemIndex, // Manual focus state
-                    modifier = Modifier.padding(vertical = 4.dp) // Reduced spacing for more compact layout
+                    isInWatchlist = watchlist.any { it.id == limited[index].id },
+                    isManuallyFocused = index == focusedItemIndex, // Use direct index comparison
+                    modifier = Modifier.padding(vertical = 4.dp)
                 )
             }
+        }
+    }
+}
+
+/**
+ * In-place content details overlay shown over the bottom area.
+ * Keeps the hero backdrop visible while hiding the content rows.
+ */
+@Composable
+private fun ContentDetailsOverlay(
+    content: VideoContent,
+    isInWatchlist: Boolean,
+    onPlay: () -> Unit,
+    onToggleWatchlist: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val focusRequester = remember { FocusRequester() }
+    
+    // Request initial focus so D-pad works inside the panel
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    
+    Box(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(260.dp)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            Color.Black.copy(alpha = 0.85f),
+                            Color.Black.copy(alpha = 0.95f)
+                        )
+                    )
+                )
+                .focusRequester(focusRequester)
+                .focusable()
+                .onPreviewKeyEvent { keyEvent ->
+                    if (keyEvent.type == KeyEventType.KeyDown && (keyEvent.key == Key.Back || keyEvent.key == Key.Escape)) {
+                        onDismiss()
+                        true
+                    } else false
+                }
+                .padding(horizontal = 48.dp, vertical = 16.dp)
+        ) {
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            horizontalArrangement = Arrangement.spacedBy(24.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Left: Title and overview
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = content.title,
+                    color = Color.White,
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2
+                )
+                if (!content.overview.isNullOrBlank()) {
+                    Text(
+                        text = content.overview!!,
+                        color = Color.White.copy(alpha = 0.9f),
+                        fontSize = 16.sp,
+                        lineHeight = 20.sp,
+                        maxLines = 4
+                    )
+                }
+            }
+            
+            // Right: Actions
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Button(onClick = onPlay) {
+                    Text("Play")
+                }
+                Button(onClick = onToggleWatchlist) {
+                    Text(if (isInWatchlist) "Remove from My List" else "+ My List")
+                }
+                Button(onClick = onDismiss) {
+                    Text("Back")
+                }
+            }
+        }
         }
     }
 }

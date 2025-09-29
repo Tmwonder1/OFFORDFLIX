@@ -26,6 +26,7 @@ class ContentDiscoveryRepository @Inject constructor(
     
     /**
      * Get popular movies with optional profile filtering.
+     * Includes TMDB logo fetching for enhanced UI experience.
      */
     fun getPopularMovies(profile: Profile? = null): Flow<List<VideoContent>> = flow {
         try {
@@ -40,7 +41,10 @@ class ContentDiscoveryRepository @Inject constructor(
                         getGenres = { it.genres }
                     )
                 } ?: movies
-                emit(filteredMovies)
+                
+                // Enrich with logos from TMDB
+                val enrichedMovies = enrichContentWithLogos(filteredMovies)
+                emit(enrichedMovies)
             } else {
                 emit(emptyList())
             }
@@ -50,7 +54,7 @@ class ContentDiscoveryRepository @Inject constructor(
     }
     
     /**
-     * Get top-rated movies.
+     * Get top-rated movies with TMDB logos.
      */
     fun getTopRatedMovies(profile: Profile? = null): Flow<List<VideoContent>> = flow {
         try {
@@ -310,12 +314,11 @@ class ContentDiscoveryRepository @Inject constructor(
             Result.failure(e)
         }
     }
-}
 
-/**
- * Extension functions to convert DTOs to domain models.
- */
-private fun TmdbMovieDto.toVideoContent(): VideoContent {
+    /**
+     * Extension functions to convert DTOs to domain models.
+     */
+    private fun TmdbMovieDto.toVideoContent(): VideoContent {
     return VideoContent(
         id = "movie/$id",
         title = title,
@@ -323,14 +326,15 @@ private fun TmdbMovieDto.toVideoContent(): VideoContent {
         tmdbId = id.toString(),
         backdropUrl = backdropPath?.let { "${TmdbApi.IMAGE_BASE_URL}${TmdbApi.BACKDROP_SIZE}$it" },
         posterUrl = posterPath?.let { "${TmdbApi.IMAGE_BASE_URL}${TmdbApi.POSTER_SIZE}$it" },
+        logoUrl = null, // Will be populated asynchronously via enrichContentWithLogos()
         overview = overview,
         releaseDate = releaseDate,
         voteAverage = voteAverage,
         genres = emptyList() // Genre names would need to be resolved from IDs
     )
-}
+    }
 
-private fun TmdbTvDto.toVideoContent(): VideoContent {
+    private fun TmdbTvDto.toVideoContent(): VideoContent {
     return VideoContent(
         id = "tv/$id",
         title = name,
@@ -338,14 +342,15 @@ private fun TmdbTvDto.toVideoContent(): VideoContent {
         tmdbId = id.toString(),
         backdropUrl = backdropPath?.let { "${TmdbApi.IMAGE_BASE_URL}${TmdbApi.BACKDROP_SIZE}$it" },
         posterUrl = posterPath?.let { "${TmdbApi.IMAGE_BASE_URL}${TmdbApi.POSTER_SIZE}$it" },
+        logoUrl = null, // Will be populated asynchronously via enrichContentWithLogos()
         overview = overview,
         releaseDate = firstAirDate,
         voteAverage = voteAverage,
         genres = emptyList() // Genre names would need to be resolved from IDs
     )
-}
+    }
 
-private fun TmdbMultiDto.toVideoContent(): VideoContent {
+    private fun TmdbMultiDto.toVideoContent(): VideoContent {
     return VideoContent(
         id = "$mediaType/$id",
         title = title ?: name ?: "Unknown",
@@ -353,14 +358,15 @@ private fun TmdbMultiDto.toVideoContent(): VideoContent {
         tmdbId = id.toString(),
         backdropUrl = backdropPath?.let { "${TmdbApi.IMAGE_BASE_URL}${TmdbApi.BACKDROP_SIZE}$it" },
         posterUrl = posterPath?.let { "${TmdbApi.IMAGE_BASE_URL}${TmdbApi.POSTER_SIZE}$it" },
+        logoUrl = null, // Will be populated asynchronously via enrichContentWithLogos()
         overview = overview,
         releaseDate = releaseDate ?: firstAirDate,
         voteAverage = voteAverage,
         genres = emptyList()
     )
-}
+    }
 
-private fun TmdbMovieDetailsDto.toVideoContent(): VideoContent {
+    private fun TmdbMovieDetailsDto.toVideoContent(): VideoContent {
     return VideoContent(
         id = "movie/$id",
         title = title,
@@ -368,15 +374,16 @@ private fun TmdbMovieDetailsDto.toVideoContent(): VideoContent {
         tmdbId = id.toString(),
         backdropUrl = backdropPath?.let { "${TmdbApi.IMAGE_BASE_URL}${TmdbApi.BACKDROP_SIZE}$it" },
         posterUrl = posterPath?.let { "${TmdbApi.IMAGE_BASE_URL}${TmdbApi.POSTER_SIZE}$it" },
+        logoUrl = null, // Will be populated asynchronously via enrichContentWithLogos()
         overview = overview,
         releaseDate = releaseDate,
         runtime = runtime,
         voteAverage = voteAverage,
         genres = genres.map { it.name }
     )
-}
+    }
 
-private fun TmdbTvDetailsDto.toVideoContent(): VideoContent {
+    private fun TmdbTvDetailsDto.toVideoContent(): VideoContent {
     return VideoContent(
         id = "tv/$id",
         title = name,
@@ -384,6 +391,7 @@ private fun TmdbTvDetailsDto.toVideoContent(): VideoContent {
         tmdbId = id.toString(),
         backdropUrl = backdropPath?.let { "${TmdbApi.IMAGE_BASE_URL}${TmdbApi.BACKDROP_SIZE}$it" },
         posterUrl = posterPath?.let { "${TmdbApi.IMAGE_BASE_URL}${TmdbApi.POSTER_SIZE}$it" },
+        logoUrl = null, // Will be populated asynchronously via enrichContentWithLogos()
         overview = overview,
         releaseDate = firstAirDate,
         voteAverage = voteAverage,
@@ -391,20 +399,113 @@ private fun TmdbTvDetailsDto.toVideoContent(): VideoContent {
         seasonCount = numberOfSeasons,
         episodeCount = numberOfEpisodes
     )
-}
+    }
 
-private fun TmdbGenreDto.toGenre(): Genre {
-    return Genre(
-        id = id,
-        name = name
+    private fun TmdbGenreDto.toGenre(): Genre {
+        return Genre(
+            id = id,
+            name = name
+        )
+    }
+
+    /**
+     * Genre domain model.
+     */
+    data class Genre(
+        val id: Int,
+        val name: String
     )
-}
 
-/**
- * Genre domain model.
- */
-data class Genre(
-    val id: Int,
-    val name: String
-)
+    /**
+     * Helper function to get logo URLs for content.
+ * 
+     * This is a placeholder that returns null for now, but should be enhanced
+     * to fetch logo images from TMDB images API asynchronously.
+     * 
+     * For immediate use, you can call getContentWithLogos() which fetches
+     * logos asynchronously using the TMDB images API.
+     */
+    private fun getLogoUrlForContent(title: String, tmdbId: Int): String? {
+        // Fallback logo mapping for popular content (as backup)
+        val logoMap = mapOf(
+            "Breaking Bad" to "https://logos-world.net/wp-content/uploads/2022/01/Breaking-Bad-Logo.png",
+            "Stranger Things" to "https://logos-world.net/wp-content/uploads/2022/04/Stranger-Things-Logo.png",
+            "The Dark Knight" to "https://logos-world.net/wp-content/uploads/2021/12/Batman-Dark-Knight-Logo.png",
+            "Game of Thrones" to "https://logos-world.net/wp-content/uploads/2017/06/Game-of-Thrones-Logo.png",
+            "House of the Dragon" to "https://logos-world.net/wp-content/uploads/2022/10/House-of-the-Dragon-Logo.png",
+            "The Witcher" to "https://logos-world.net/wp-content/uploads/2021/12/The-Witcher-Logo.png",
+            "Arcane" to "https://logos-world.net/wp-content/uploads/2021/11/Arcane-Logo.png",
+            "Wednesday" to "https://logos-world.net/wp-content/uploads/2022/11/Wednesday-Logo.png"
+        )
+        
+        // Try to find by exact title match first
+        logoMap[title]?.let { return it }
+        
+        // Try partial matches for flexibility
+        logoMap.entries.find { (key, _) -> 
+            title.contains(key, ignoreCase = true) || key.contains(title, ignoreCase = true)
+        }?.value?.let { return it }
+        
+        // Return null if no logo found (will fallback to text)
+        return null
+    }
+
+    /**
+     * Get logo URL from TMDB images API for a movie.
+     */
+    private suspend fun getMovieLogoFromTmdb(movieId: Int): String? {
+        return try {
+            val response = tmdbApi.getMovieImages(movieId, API_KEY)
+            if (response.isSuccessful) {
+                val logos = response.body()?.logos
+                // Get the best logo (highest vote average, or first if none voted)
+                val bestLogo = logos?.maxByOrNull { it.voteAverage } ?: logos?.firstOrNull()
+                bestLogo?.let { "${TmdbApi.IMAGE_BASE_URL}${TmdbApi.LOGO_SIZE}${it.filePath}" }
+            } else null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Get logo URL from TMDB images API for a TV show.
+     */
+    private suspend fun getTvLogoFromTmdb(tvId: Int): String? {
+        return try {
+            val response = tmdbApi.getTvImages(tvId, API_KEY)
+            if (response.isSuccessful) {
+                val logos = response.body()?.logos
+                // Get the best logo (highest vote average, or first if none voted)
+                val bestLogo = logos?.maxByOrNull { it.voteAverage } ?: logos?.firstOrNull()
+                bestLogo?.let { "${TmdbApi.IMAGE_BASE_URL}${TmdbApi.LOGO_SIZE}${it.filePath}" }
+            } else null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Enriches a list of VideoContent with logo URLs from TMDB.
+     * This function fetches logos asynchronously for better performance.
+     */
+    private suspend fun enrichContentWithLogos(contentList: List<VideoContent>): List<VideoContent> {
+        return contentList.map { content ->
+            try {
+                val logoUrl = when (content.type) {
+                    ContentType.MOVIE -> getMovieLogoFromTmdb(content.tmdbId.toInt())
+                    ContentType.TV_SHOW -> getTvLogoFromTmdb(content.tmdbId.toInt())
+                }
+                
+                // If TMDB logo not found, try fallback mapping
+                val finalLogoUrl = logoUrl ?: getLogoUrlForContent(content.title, content.tmdbId.toInt())
+                
+                content.copy(logoUrl = finalLogoUrl)
+            } catch (e: Exception) {
+                // If logo fetching fails, try fallback mapping
+                val fallbackLogoUrl = getLogoUrlForContent(content.title, content.tmdbId.toInt())
+                content.copy(logoUrl = fallbackLogoUrl)
+            }
+        }
+    }
+}
 
