@@ -1,6 +1,8 @@
 package com.offordflix.ui.screens.search
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -10,34 +12,43 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.key.*
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import coil.compose.AsyncImage
 import com.offordflix.domain.model.VideoContent
 import com.offordflix.ui.components.ContentCard
+import com.offordflix.ui.components.FullWidthLeftScrimOverlay
+import com.offordflix.ui.components.ScrimIntensity
 
 /**
- * Search screen with voice and text input support.
+ * Search screen with virtual keyboard and content grid.
  * 
  * Features:
+ * - Virtual keyboard layout for Android TV
  * - Text search with real-time results
- * - Voice search integration (Android TV compatible)
- * - Filter options (Movies, TV Shows, All)
  * - Grid layout for search results
  * - D-pad navigation optimized
  */
@@ -46,40 +57,82 @@ fun SearchScreen(
     onNavigateToPlayer: (VideoContent) -> Unit,
     onNavigateToDetails: (VideoContent) -> Unit = {},
     onNavigateBack: () -> Unit,
-    viewModel: SearchViewModel = hiltViewModel()
+    viewModel: SearchViewModel = hiltViewModel(),
+    isDrawerExpanded: Boolean = false,
+    onExpandDrawer: (() -> Unit)? = null
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val keyboardController = LocalSoftwareKeyboardController.current
     
+    // Local UI state for details overlay
+    var selectedContent by remember { mutableStateOf<VideoContent?>(null) }
+    var isDetailsVisible by remember { mutableStateOf(false) }
+    
+    // Create a gradient background similar to the image
+    val gradientBackground = Brush.verticalGradient(
+        colors = listOf(
+            Color(0xFF1a1a2e),
+            Color(0xFF16213e),
+            Color(0xFF0f3460)
+        )
+    )
+    
+    Box(modifier = Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(gradientBackground)
+                .padding(
+                    start = if (isDrawerExpanded) 352.dp else 32.dp, // Add padding when drawer is expanded (320dp drawer + 32dp original padding)
+                    top = 32.dp,
+                    end = 32.dp,
+                    bottom = 32.dp
+                )
+        ) {
+            // Left side - Virtual Keyboard
     Column(
         modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .padding(48.dp)
+                    .weight(0.4f)
+                    .fillMaxHeight()
     ) {
-        // Search header
-        SearchHeader(
+                // Search input field
+                SearchInputField(
             query = uiState.query,
             onQueryChange = viewModel::updateQuery,
-            onSearch = { 
-                viewModel.search()
-                keyboardController?.hide()
-            },
-            onVoiceSearch = viewModel::startVoiceSearch,
-            onClear = viewModel::clearSearch
+                    onSearch = viewModel::search,
+                    modifier = Modifier.fillMaxWidth()
         )
         
         Spacer(modifier = Modifier.height(24.dp))
         
-        // Filter chips
-        SearchFilters(
-            selectedFilter = uiState.selectedFilter,
-            onFilterSelected = viewModel::setFilter
-        )
-        
-        Spacer(modifier = Modifier.height(24.dp))
-        
-        // Search results
+                // Virtual keyboard
+                VirtualKeyboard(
+                    onKeyPress = { key ->
+                        when (key) {
+                            "⌫" -> {
+                                if (uiState.query.isNotEmpty()) {
+                                    viewModel.updateQuery(uiState.query.dropLast(1))
+                                }
+                            }
+                            "Search" -> {
+                                viewModel.search()
+                            }
+                            else -> {
+                                viewModel.updateQuery(uiState.query + key)
+                            }
+                        }
+                    },
+                    onExpandDrawer = onExpandDrawer
+                )
+            }
+            
+            Spacer(modifier = Modifier.width(32.dp))
+            
+            // Right side - Search Results
+            Column(
+                modifier = Modifier
+                    .weight(0.6f)
+                    .fillMaxHeight()
+            ) {
         when {
             uiState.isLoading -> {
                 LoadingResults()
@@ -94,13 +147,16 @@ fun SearchScreen(
             uiState.query.isBlank() -> {
                 EmptySearchState()
             }
-            uiState.searchResults.isEmpty() -> {
+                    uiState.searchResults.isEmpty() && uiState.query.isNotBlank() -> {
                 NoResultsState(query = uiState.query)
             }
             else -> {
                 SearchResults(
                     results = uiState.filteredResults,
-                    onContentClick = onNavigateToDetails,
+                            onContentClick = { content ->
+                                selectedContent = content
+                                isDetailsVisible = true
+                            },
                     onPlayClick = onNavigateToPlayer,
                     onAddToWatchlist = viewModel::addToWatchlist,
                     onRemoveFromWatchlist = viewModel::removeFromWatchlist,
@@ -111,89 +167,85 @@ fun SearchScreen(
     }
 }
 
-/**
- * Search header with input field and voice search.
- */
-@Composable
-private fun SearchHeader(
-    query: String,
-    onQueryChange: (String) -> Unit,
-    onSearch: () -> Unit,
-    onVoiceSearch: () -> Unit,
-    onClear: () -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        // Search input field
-        SearchTextField(
-            value = query,
-            onValueChange = onQueryChange,
-            onSearch = onSearch,
-            modifier = Modifier.weight(1f)
-        )
-        
-        // Voice search button
-        Button(
-            onClick = onVoiceSearch,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary
-            ),
-            shape = RoundedCornerShape(8.dp)
-        ) {
-            Text(
-                text = "🎤",
-                fontSize = 20.sp
+        // Details Overlay - Full screen without any padding
+        val details = selectedContent
+        if (isDetailsVisible && details != null) {
+            ContentDetailsOverlay(
+                content = details,
+                isInWatchlist = uiState.watchlist.any { it.id == details.id },
+                onPlay = {
+                    onNavigateToPlayer(details)
+                },
+                onToggleWatchlist = {
+                    if (uiState.watchlist.any { it.id == details.id }) {
+                        viewModel.removeFromWatchlist(details)
+                    } else {
+                        viewModel.addToWatchlist(details)
+                    }
+                },
+                onDismiss = {
+                    isDetailsVisible = false
+                    selectedContent = null
+                }
             )
-        }
-        
-        // Clear button
-        if (query.isNotBlank()) {
-            Button(
-                onClick = onClear,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.secondary
-                )
-            ) {
-                Text("Clear")
-            }
         }
     }
 }
 
 /**
- * Custom search text field optimized for TV.
+ * Search input field with modern styling.
  */
 @Composable
-private fun SearchTextField(
-    value: String,
-    onValueChange: (String) -> Unit,
+private fun SearchInputField(
+    query: String,
+    onQueryChange: (String) -> Unit,
     onSearch: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var isFocused by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     
-    BasicTextField(
-        value = value,
-        onValueChange = onValueChange,
+    Box(
         modifier = modifier
-            .focusRequester(focusRequester)
-            .focusable()
-            .onFocusChanged { isFocused = it.isFocused }
+            .height(56.dp)
             .background(
-                if (isFocused) MaterialTheme.colorScheme.surface 
-                else MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
-                RoundedCornerShape(8.dp)
+                color = Color.White.copy(alpha = 0.1f),
+                shape = RoundedCornerShape(12.dp)
             )
-            .padding(16.dp),
+            .border(
+                width = 2.dp,
+                color = if (isFocused) Color(0xFF00D4AA) else Color.Transparent,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .padding(horizontal = 16.dp),
+        contentAlignment = Alignment.CenterStart
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(
+                imageVector = Icons.Default.Search,
+                contentDescription = "Search",
+                tint = Color.White.copy(alpha = 0.7f),
+                modifier = Modifier.size(20.dp)
+            )
+            
+            Spacer(modifier = Modifier.width(12.dp))
+            
+            BasicTextField(
+                value = query,
+                onValueChange = onQueryChange,
+                modifier = Modifier
+                    .weight(1f)
+                    .focusRequester(focusRequester)
+                    .onFocusChanged { isFocused = it.isFocused },
         textStyle = TextStyle(
-            fontSize = 18.sp,
-            color = MaterialTheme.colorScheme.onSurface
+                    fontSize = 16.sp,
+                    color = Color.White,
+                    fontWeight = FontWeight.Medium
         ),
-        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                cursorBrush = SolidColor(Color(0xFF00D4AA)),
         keyboardOptions = KeyboardOptions(
             keyboardType = KeyboardType.Text,
             imeAction = ImeAction.Search
@@ -202,53 +254,138 @@ private fun SearchTextField(
             onSearch = { onSearch() }
         ),
         decorationBox = { innerTextField ->
-            Box(
-                modifier = Modifier.fillMaxWidth(),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                if (value.isEmpty()) {
+                    Box {
+                        if (query.isEmpty()) {
                     Text(
-                        text = "Search movies and TV shows...",
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                        fontSize = 18.sp
+                                text = "Search",
+                                color = Color.White.copy(alpha = 0.5f),
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Medium
                     )
                 }
                 innerTextField()
             }
         }
     )
+        }
+    }
 }
 
 /**
- * Search filter chips.
+ * Virtual keyboard component with alphabet and number keys.
  */
 @Composable
-private fun SearchFilters(
-    selectedFilter: SearchFilter,
-    onFilterSelected: (SearchFilter) -> Unit
+private fun VirtualKeyboard(
+    onKeyPress: (String) -> Unit,
+    onExpandDrawer: (() -> Unit)? = null,
+    modifier: Modifier = Modifier
 ) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    val keyboardRows = listOf(
+        listOf("a", "b", "c", "d", "e", "f"),
+        listOf("g", "h", "i", "j", "k", "l"),
+        listOf("m", "n", "o", "p", "q", "r"),
+        listOf("s", "t", "u", "v", "w", "x"),
+        listOf("y", "z", "1", "2", "3", "4"),
+        listOf("5", "6", "7", "8", "9", "0"),
+        listOf("#+", "Search")
+    )
+    
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        SearchFilter.values().forEach { filter ->
-            FilterChip(
-                selected = selectedFilter == filter,
-                onClick = { onFilterSelected(filter) },
-                label = {
-                    Text(
-                        text = filter.displayName,
-                        fontSize = 14.sp,
-                        fontWeight = if (selectedFilter == filter) FontWeight.Bold else FontWeight.Normal
+        keyboardRows.forEachIndexed { rowIndex, row ->
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                row.forEachIndexed { keyIndex, key ->
+                    VirtualKeyButton(
+                        key = key,
+                        onClick = { onKeyPress(key) },
+                        onExpandDrawer = if (keyIndex == 0) onExpandDrawer else null, // Only leftmost keys can expand drawer
+                        modifier = Modifier.weight(1f)
                     )
-                },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = MaterialTheme.colorScheme.primary,
-                    selectedLabelColor = Color.White,
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    labelColor = MaterialTheme.colorScheme.onSurface
-                )
-            )
+                }
+                
+                // Add backspace button to the last row
+                if (row == keyboardRows.last()) {
+                    VirtualKeyButton(
+                        key = "⌫",
+                        onClick = { onKeyPress("⌫") },
+                        modifier = Modifier.weight(1f),
+                        isSpecial = true
+                    )
+                }
+            }
         }
+    }
+}
+
+/**
+ * Individual virtual keyboard button.
+ */
+@Composable
+private fun VirtualKeyButton(
+    key: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    isSpecial: Boolean = false,
+    onExpandDrawer: (() -> Unit)? = null
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    
+    Box(
+        modifier = modifier
+            .height(48.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(
+                when {
+                    isFocused -> Color(0xFF00D4AA)
+                    isSpecial -> Color.White.copy(alpha = 0.15f)
+                    key == "Search" -> Color(0xFF00D4AA)
+                    else -> Color.White.copy(alpha = 0.1f)
+                }
+            )
+            .border(
+                width = 1.dp,
+                color = if (isFocused) Color(0xFF00D4AA) else Color.White.copy(alpha = 0.2f),
+                shape = RoundedCornerShape(8.dp)
+            )
+            .clickable { onClick() }
+            .focusable()
+            .onFocusChanged { isFocused = it.isFocused }
+            .onKeyEvent { keyEvent ->
+                if (keyEvent.type == KeyEventType.KeyDown) {
+                    when (keyEvent.key) {
+                        Key.Enter -> {
+                            onClick()
+                            true
+                        }
+                        Key.DirectionLeft -> {
+                            // Only expand drawer if this is a leftmost key and has onExpandDrawer callback
+                            if (onExpandDrawer != null) {
+                                onExpandDrawer()
+                                true
+                            } else {
+                                false
+                            }
+                        }
+                        else -> false
+                    }
+                } else {
+                    false
+                }
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = key.uppercase(),
+            color = Color.White,
+            fontSize = if (key.length > 1) 12.sp else 16.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
+        )
     }
 }
 
@@ -265,9 +402,10 @@ private fun SearchResults(
     watchlist: List<VideoContent>
 ) {
     LazyVerticalGrid(
-        columns = GridCells.Adaptive(200.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        columns = GridCells.Fixed(4), // Fixed 4 columns to match the image layout
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = PaddingValues(16.dp)
     ) {
         items(results) { content ->
             ContentCard(
@@ -292,20 +430,25 @@ private fun SearchResults(
  */
 @Composable
 private fun LoadingResults() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
     Column(
-        modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         CircularProgressIndicator(
-            color = MaterialTheme.colorScheme.primary,
+                color = Color(0xFF00D4AA),
             modifier = Modifier.size(48.dp)
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
             text = "Searching...",
             fontSize = 18.sp,
-            color = MaterialTheme.colorScheme.onBackground
+                color = Color.White,
+                fontWeight = FontWeight.Medium
         )
+        }
     }
 }
 
@@ -317,30 +460,40 @@ private fun ErrorResults(
     error: String,
     onRetry: () -> Unit
 ) {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+) {
     Column(
-        modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
             text = "Search failed",
             fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.error
+                color = Color(0xFFFF6B6B)
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = error,
             fontSize = 16.sp,
-            color = MaterialTheme.colorScheme.onBackground
+                color = Color.White.copy(alpha = 0.8f),
+                textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(16.dp))
         Button(
             onClick = onRetry,
             colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary
-            )
-        ) {
-            Text("Retry")
+                    containerColor = Color(0xFF00D4AA)
+                ),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(
+                    text = "Retry",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
     }
 }
@@ -350,8 +503,11 @@ private fun ErrorResults(
  */
 @Composable
 private fun EmptySearchState() {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
     Column(
-        modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
@@ -362,14 +518,16 @@ private fun EmptySearchState() {
         Text(
             text = "Search for movies and TV shows",
             fontSize = 20.sp,
-            color = MaterialTheme.colorScheme.onBackground
+                color = Color.White,
+                fontWeight = FontWeight.Medium
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Use the search bar above or press the voice search button",
+                text = "Use the virtual keyboard to start typing",
             fontSize = 16.sp,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                color = Color.White.copy(alpha = 0.7f)
         )
+        }
     }
 }
 
@@ -378,8 +536,11 @@ private fun EmptySearchState() {
  */
 @Composable
 private fun NoResultsState(query: String) {
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
     Column(
-        modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
@@ -391,20 +552,208 @@ private fun NoResultsState(query: String) {
             text = "No results found",
             fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground
+                color = Color.White
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = "No results for \"$query\"",
             fontSize = 16.sp,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+                color = Color.White.copy(alpha = 0.7f),
+                textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = "Try a different search term or check your spelling",
             fontSize = 14.sp,
-            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
-        )
+                color = Color.White.copy(alpha = 0.5f),
+                textAlign = TextAlign.Center
+            )
+        }
     }
 }
 
+/**
+ * Content details overlay shown over the search results.
+ * Includes full hero backdrop image like the home screen.
+ */
+@Composable
+private fun ContentDetailsOverlay(
+    content: VideoContent,
+    isInWatchlist: Boolean,
+    onPlay: () -> Unit,
+    onToggleWatchlist: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val focusRequester = remember { FocusRequester() }
+    
+    // Request initial focus so D-pad works inside the panel
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .focusRequester(focusRequester)
+            .focusable()
+            .onKeyEvent { keyEvent ->
+                if (keyEvent.type == KeyEventType.KeyDown && (keyEvent.key == Key.Back || keyEvent.key == Key.Escape)) {
+                    onDismiss()
+                    true
+                } else false
+            }
+    ) {
+        // Background image with fallback hierarchy
+        var backdropLoadError by remember { mutableStateOf(false) }
+        var posterLoadError by remember { mutableStateOf(false) }
+        
+        when {
+            // Try backdrop first
+            content.backdropUrl != null && !backdropLoadError -> {
+                AsyncImage(
+                    model = content.backdropUrl,
+                    contentDescription = content.title,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    onError = {
+                        backdropLoadError = true
+                    }
+                )
+            }
+            // Fallback to poster if backdrop fails or is null
+            content.posterUrl != null && !posterLoadError -> {
+                AsyncImage(
+                    model = content.posterUrl,
+                    contentDescription = content.title,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    onError = {
+                        posterLoadError = true
+                    }
+                )
+            }
+            // Final fallback to gradient background
+            else -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color(0xFF1a1a2e),
+                                    Color(0xFF16213e),
+                                    Color(0xFF0f3460)
+                                )
+                            )
+                        )
+                )
+            }
+        }
+        
+        // Left scrim overlay for text readability
+        FullWidthLeftScrimOverlay(
+            intensity = ScrimIntensity.Strong,
+            scrimWidthRatio = 0.65f,
+            modifier = Modifier.fillMaxSize()
+        )
+        
+        // Content information and actions
+        Row(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .padding(48.dp)
+                .fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(32.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Left: Title and overview
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Title - Use logo if available, otherwise text
+                var logoLoadError by remember { mutableStateOf(false) }
+                
+                if (content.logoUrl != null && !logoLoadError) {
+                    AsyncImage(
+                        model = content.logoUrl,
+                        contentDescription = content.title,
+                        modifier = Modifier
+                            .height(80.dp)
+                            .widthIn(max = 400.dp),
+                        contentScale = ContentScale.Fit,
+                        onError = {
+                            logoLoadError = true
+                        }
+                    )
+                } else {
+                    Text(
+                        text = content.title,
+                        fontSize = 48.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        maxLines = 2
+                    )
+                }
+                
+                // Overview
+                if (!content.overview.isNullOrBlank()) {
+                    Text(
+                        text = content.overview!!,
+                        color = Color.White.copy(alpha = 0.9f),
+                        fontSize = 18.sp,
+                        lineHeight = 24.sp,
+                        maxLines = 4
+                    )
+                }
+            }
+            
+            // Right: Actions
+            Column(
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Button(
+                    onClick = onPlay,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.White,
+                        contentColor = Color.Black
+                    ),
+                    modifier = Modifier.height(48.dp)
+                ) {
+                    Text(
+                        text = "Play",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Button(
+                    onClick = onToggleWatchlist,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.White.copy(alpha = 0.2f),
+                        contentColor = Color.White
+                    ),
+                    modifier = Modifier.height(48.dp)
+                ) {
+                    Text(
+                        text = if (isInWatchlist) "Remove from My List" else "+ My List",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Button(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.White.copy(alpha = 0.2f),
+                        contentColor = Color.White
+                    ),
+                    modifier = Modifier.height(48.dp)
+                ) {
+                    Text(
+                        text = "Back",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
+}

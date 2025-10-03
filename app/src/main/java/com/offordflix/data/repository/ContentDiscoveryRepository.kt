@@ -1,10 +1,18 @@
 package com.offordflix.data.repository
 
+import android.util.Log
 import com.offordflix.data.api.TmdbApi
 import com.offordflix.data.dto.*
 import com.offordflix.domain.model.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -17,11 +25,60 @@ import javax.inject.Singleton
 @Singleton
 class ContentDiscoveryRepository @Inject constructor(
     private val tmdbApi: TmdbApi,
+    private val offordflixApi: com.offordflix.data.api.OffordflixApi,
     private val contentFilterRepository: ContentFilterRepository
 ) {
     
     companion object {
         private const val API_KEY = "df26f7a61a2c85d4a80d5239f7192d70" // TMDB API Key
+    }
+    
+    /**
+     * Get enhanced home content with all content rows from our backend.
+     */
+    fun getEnhancedHomeContent(profile: Profile? = null): Flow<com.offordflix.data.dto.HomeContentResponse?> = flow {
+        try {
+            val response = offordflixApi.getHomeContent()
+            if (response.isSuccessful) {
+                emit(response.body())
+            } else {
+                emit(null)
+            }
+        } catch (e: Exception) {
+            emit(null)
+        }
+    }
+    
+    /**
+     * Get enhanced movies content with movie-only rows from our backend.
+     */
+    fun getEnhancedMoviesContent(profile: Profile? = null): Flow<com.offordflix.data.dto.MoviesContentResponse?> = flow {
+        try {
+            val response = offordflixApi.getMoviesContent()
+            if (response.isSuccessful) {
+                emit(response.body())
+            } else {
+                emit(null)
+            }
+        } catch (e: Exception) {
+            emit(null)
+        }
+    }
+    
+    /**
+     * Get enhanced TV shows content with TV show-only rows from our backend.
+     */
+    fun getEnhancedTVShowsContent(profile: Profile? = null): Flow<com.offordflix.data.dto.TVShowsContentResponse?> = flow {
+        try {
+            val response = offordflixApi.getTVShowsContent()
+            if (response.isSuccessful) {
+                emit(response.body())
+            } else {
+                emit(null)
+            }
+        } catch (e: Exception) {
+            emit(null)
+        }
     }
     
     /**
@@ -185,6 +242,297 @@ class ContentDiscoveryRepository @Inject constructor(
                 // Enrich with logos from TMDB
                 val enrichedContent = enrichContentWithLogos(filteredContent)
                 emit(enrichedContent)
+            } else {
+                emit(emptyList())
+            }
+        } catch (e: Exception) {
+            emit(emptyList())
+        }
+    }
+    
+    /**
+     * Get trending movies only.
+     */
+    fun getTrendingMovies(profile: Profile? = null): Flow<List<VideoContent>> = flow {
+        try {
+            val response = tmdbApi.getTrendingDay(API_KEY)
+            if (response.isSuccessful) {
+                val content = response.body()?.results?.map { it.toVideoContent() } ?: emptyList()
+                val movies = content.filter { it.type == ContentType.MOVIE }
+                val filteredMovies = profile?.let { 
+                    contentFilterRepository.filterContent(
+                        profile = it,
+                        content = movies,
+                        getRating = { null },
+                        getGenres = { it.genres }
+                    )
+                } ?: movies
+                
+                // Enrich with logos from TMDB
+                val enrichedMovies = enrichContentWithLogos(filteredMovies)
+                emit(enrichedMovies)
+            } else {
+                emit(emptyList())
+            }
+        } catch (e: Exception) {
+            emit(emptyList())
+        }
+    }
+    
+    /**
+     * Get upcoming movies.
+     */
+    fun getUpcomingMovies(profile: Profile? = null): Flow<List<VideoContent>> = flow {
+        try {
+            val response = tmdbApi.getUpcomingMovies(API_KEY)
+            if (response.isSuccessful) {
+                val movies = response.body()?.results?.map { it.toVideoContent() } ?: emptyList()
+                val filteredMovies = profile?.let { 
+                    contentFilterRepository.filterContent(
+                        profile = it,
+                        content = movies,
+                        getRating = { null },
+                        getGenres = { it.genres }
+                    )
+                } ?: movies
+                
+                // Enrich with logos from TMDB
+                val enrichedMovies = enrichContentWithLogos(filteredMovies)
+                emit(enrichedMovies)
+            } else {
+                emit(emptyList())
+            }
+        } catch (e: Exception) {
+            emit(emptyList())
+        }
+    }
+    
+    /**
+     * Get movies by genre name.
+     */
+    fun getMoviesByGenre(genreName: String, profile: Profile? = null): Flow<List<VideoContent>> = flow {
+        try {
+            // Map genre names to TMDB genre IDs
+            val genreId = when (genreName.lowercase()) {
+                "action" -> 28
+                "comedy" -> 35
+                "drama" -> 18
+                "horror" -> 27
+                "romance" -> 10749
+                "thriller" -> 53
+                "sci-fi", "science fiction" -> 878
+                "fantasy" -> 14
+                "animation" -> 16
+                "crime" -> 80
+                else -> null
+            }
+            
+            if (genreId != null) {
+                val response = tmdbApi.discoverMovies(
+                    apiKey = API_KEY,
+                    withGenres = genreId.toString()
+                )
+                
+                if (response.isSuccessful) {
+                    val movies = response.body()?.results?.map { it.toVideoContent() } ?: emptyList()
+                    val filteredMovies = profile?.let { 
+                        contentFilterRepository.filterContent(
+                            profile = it,
+                            content = movies,
+                            getRating = { null },
+                            getGenres = { it.genres }
+                        )
+                    } ?: movies
+                    
+                    // Enrich with logos from TMDB
+                    val enrichedMovies = enrichContentWithLogos(filteredMovies)
+                    emit(enrichedMovies)
+                } else {
+                    emit(emptyList())
+                }
+            } else {
+                emit(emptyList())
+            }
+        } catch (e: Exception) {
+            emit(emptyList())
+        }
+    }
+    
+    /**
+     * Search for movies only.
+     */
+    fun searchMovies(query: String, profile: Profile? = null): Flow<List<VideoContent>> = flow {
+        try {
+            if (query.isBlank()) {
+                emit(emptyList())
+                return@flow
+            }
+            
+            val response = tmdbApi.searchMovies(API_KEY, query)
+            if (response.isSuccessful) {
+                val movies = response.body()?.results?.map { it.toVideoContent() } ?: emptyList()
+                val filteredMovies = profile?.let { 
+                    contentFilterRepository.filterContent(
+                        profile = it,
+                        content = movies,
+                        getRating = { null },
+                        getGenres = { it.genres }
+                    )
+                } ?: movies
+                
+                // Enrich with logos from TMDB
+                val enrichedMovies = enrichContentWithLogos(filteredMovies)
+                emit(enrichedMovies)
+            } else {
+                emit(emptyList())
+            }
+        } catch (e: Exception) {
+            emit(emptyList())
+        }
+    }
+    
+    /**
+     * Get trending TV shows only.
+     */
+    fun getTrendingTvShows(profile: Profile? = null): Flow<List<VideoContent>> = flow {
+        try {
+            val response = tmdbApi.getTrendingDay(API_KEY)
+            if (response.isSuccessful) {
+                val content = response.body()?.results?.map { it.toVideoContent() } ?: emptyList()
+                val tvShows = content.filter { it.type == ContentType.TV_SHOW }
+                val filteredTvShows = profile?.let { 
+                    contentFilterRepository.filterContent(
+                        profile = it,
+                        content = tvShows,
+                        getRating = { null },
+                        getGenres = { it.genres }
+                    )
+                } ?: tvShows
+                
+                // Enrich with logos from TMDB
+                val enrichedTvShows = enrichContentWithLogos(filteredTvShows)
+                emit(enrichedTvShows)
+            } else {
+                emit(emptyList())
+            }
+        } catch (e: Exception) {
+            emit(emptyList())
+        }
+    }
+    
+    /**
+     * Get on-air TV shows.
+     */
+    fun getOnAirTvShows(profile: Profile? = null): Flow<List<VideoContent>> = flow {
+        try {
+            val response = tmdbApi.getOnTheAirTvShows(API_KEY)
+            if (response.isSuccessful) {
+                val tvShows = response.body()?.results?.map { it.toVideoContent() } ?: emptyList()
+                val filteredTvShows = profile?.let { 
+                    contentFilterRepository.filterContent(
+                        profile = it,
+                        content = tvShows,
+                        getRating = { null },
+                        getGenres = { it.genres }
+                    )
+                } ?: tvShows
+                
+                // Enrich with logos from TMDB
+                val enrichedTvShows = enrichContentWithLogos(filteredTvShows)
+                emit(enrichedTvShows)
+            } else {
+                emit(emptyList())
+            }
+        } catch (e: Exception) {
+            emit(emptyList())
+        }
+    }
+    
+    /**
+     * Get TV shows by genre name.
+     */
+    fun getTvShowsByGenre(genreName: String, profile: Profile? = null): Flow<List<VideoContent>> = flow {
+        try {
+            // Map genre names to TMDB genre IDs for TV shows
+            val genreId = when (genreName.lowercase()) {
+                "action", "action & adventure" -> 10759
+                "animation" -> 16
+                "comedy" -> 35
+                "crime" -> 80
+                "documentary" -> 99
+                "drama" -> 18
+                "family" -> 10751
+                "kids" -> 10762
+                "mystery" -> 9648
+                "news" -> 10763
+                "reality" -> 10764
+                "sci-fi", "science fiction", "sci-fi & fantasy" -> 10765
+                "soap" -> 10766
+                "talk" -> 10767
+                "war", "war & politics" -> 10768
+                "western" -> 37
+                "thriller" -> 53 // Note: This is for movies, TV shows don't have a direct thriller genre
+                "horror" -> 27 // Note: This is for movies, TV shows don't have a direct horror genre
+                "romance" -> 10749 // Note: This is for movies, TV shows don't have a direct romance genre
+                else -> null
+            }
+            
+            if (genreId != null) {
+                val response = tmdbApi.discoverTvShows(
+                    apiKey = API_KEY,
+                    withGenres = genreId.toString()
+                )
+                
+                if (response.isSuccessful) {
+                    val tvShows = response.body()?.results?.map { it.toVideoContent() } ?: emptyList()
+                    val filteredTvShows = profile?.let { 
+                        contentFilterRepository.filterContent(
+                            profile = it,
+                            content = tvShows,
+                            getRating = { null },
+                            getGenres = { it.genres }
+                        )
+                    } ?: tvShows
+                    
+                    // Enrich with logos from TMDB
+                    val enrichedTvShows = enrichContentWithLogos(filteredTvShows)
+                    emit(enrichedTvShows)
+                } else {
+                    emit(emptyList())
+                }
+            } else {
+                emit(emptyList())
+            }
+        } catch (e: Exception) {
+            emit(emptyList())
+        }
+    }
+    
+    /**
+     * Search for TV shows only.
+     */
+    fun searchTvShows(query: String, profile: Profile? = null): Flow<List<VideoContent>> = flow {
+        try {
+            if (query.isBlank()) {
+                emit(emptyList())
+                return@flow
+            }
+            
+            val response = tmdbApi.searchTvShows(API_KEY, query)
+            if (response.isSuccessful) {
+                val tvShows = response.body()?.results?.map { it.toVideoContent() } ?: emptyList()
+                val filteredTvShows = profile?.let { 
+                    contentFilterRepository.filterContent(
+                        profile = it,
+                        content = tvShows,
+                        getRating = { null },
+                        getGenres = { it.genres }
+                    )
+                } ?: tvShows
+                
+                // Enrich with logos from TMDB
+                val enrichedTvShows = enrichContentWithLogos(filteredTvShows)
+                emit(enrichedTvShows)
             } else {
                 emit(emptyList())
             }
@@ -455,7 +803,9 @@ class ContentDiscoveryRepository @Inject constructor(
             "House of the Dragon" to "https://logos-world.net/wp-content/uploads/2022/10/House-of-the-Dragon-Logo.png",
             "The Witcher" to "https://logos-world.net/wp-content/uploads/2021/12/The-Witcher-Logo.png",
             "Arcane" to "https://logos-world.net/wp-content/uploads/2021/11/Arcane-Logo.png",
-            "Wednesday" to "https://logos-world.net/wp-content/uploads/2022/11/Wednesday-Logo.png"
+            "Wednesday" to "https://logos-world.net/wp-content/uploads/2022/11/Wednesday-Logo.png",
+            "Avatar: The Last Airbender" to "https://logos-world.net/wp-content/uploads/2020/09/Avatar-The-Last-Airbender-Logo.png",
+            "Avatar the Last Airbender" to "https://logos-world.net/wp-content/uploads/2020/09/Avatar-The-Last-Airbender-Logo.png"
         )
         
         // Try to find by exact title match first
@@ -471,18 +821,54 @@ class ContentDiscoveryRepository @Inject constructor(
     }
 
     /**
+     * Selects the best logo from a list of TMDB image DTOs.
+     * Prioritizes logos with votes > 0, then English logos, then any available logo.
+     */
+    private fun selectBestLogo(logos: List<TmdbImageDto>?): TmdbImageDto? {
+        if (logos.isNullOrEmpty()) return null
+        
+        // First, try to find logos with votes > 0 (higher quality/community approved)
+        val votedLogos = logos.filter { it.voteAverage > 0 }
+        if (votedLogos.isNotEmpty()) {
+            return votedLogos.maxByOrNull { it.voteAverage }
+        }
+        
+        // If no voted logos, prefer English logos
+        val englishLogos = logos.filter { it.iso6391 == "en" }
+        if (englishLogos.isNotEmpty()) {
+            return englishLogos.first()
+        }
+        
+        // Finally, return any available logo
+        return logos.firstOrNull()
+    }
+
+    /**
      * Get logo URL from TMDB images API for a movie.
      */
     private suspend fun getMovieLogoFromTmdb(movieId: Int): String? {
         return try {
-            val response = tmdbApi.getMovieImages(movieId, API_KEY)
-            if (response.isSuccessful) {
-                val logos = response.body()?.logos
-                // Get the best logo (highest vote average, or first if none voted)
-                val bestLogo = logos?.maxByOrNull { it.voteAverage } ?: logos?.firstOrNull()
-                bestLogo?.let { "${TmdbApi.IMAGE_BASE_URL}${TmdbApi.LOGO_SIZE}${it.filePath}" }
-            } else null
+            // First try with language filtering (en,null)
+            var response = tmdbApi.getMovieImages(movieId, API_KEY, null, "en,null")
+            var logos = if (response.isSuccessful) response.body()?.logos else null
+            
+            Log.d("TMDB_LOGO", "Movie $movieId: Found ${logos?.size ?: 0} logos with language filtering")
+            
+            // If no good logos found with language filtering, try without restrictions
+            if (logos.isNullOrEmpty() || selectBestLogo(logos) == null) {
+                Log.d("TMDB_LOGO", "Movie $movieId: Trying without language restrictions")
+                response = tmdbApi.getMovieImages(movieId, API_KEY, null, null)
+                logos = if (response.isSuccessful) response.body()?.logos else null
+                Log.d("TMDB_LOGO", "Movie $movieId: Found ${logos?.size ?: 0} logos without language filtering")
+            }
+            
+            val bestLogo = selectBestLogo(logos)
+            val logoUrl = bestLogo?.let { "${TmdbApi.IMAGE_BASE_URL}${TmdbApi.LOGO_SIZE}${it.filePath}" }
+            Log.d("TMDB_LOGO", "Movie $movieId: Selected logo: $logoUrl (votes: ${bestLogo?.voteAverage}, lang: ${bestLogo?.iso6391})")
+            
+            logoUrl
         } catch (e: Exception) {
+            Log.e("TMDB_LOGO", "Error fetching logo for movie $movieId", e)
             null
         }
     }
@@ -492,14 +878,27 @@ class ContentDiscoveryRepository @Inject constructor(
      */
     private suspend fun getTvLogoFromTmdb(tvId: Int): String? {
         return try {
-            val response = tmdbApi.getTvImages(tvId, API_KEY)
-            if (response.isSuccessful) {
-                val logos = response.body()?.logos
-                // Get the best logo (highest vote average, or first if none voted)
-                val bestLogo = logos?.maxByOrNull { it.voteAverage } ?: logos?.firstOrNull()
-                bestLogo?.let { "${TmdbApi.IMAGE_BASE_URL}${TmdbApi.LOGO_SIZE}${it.filePath}" }
-            } else null
+            // First try with language filtering (en,null)
+            var response = tmdbApi.getTvImages(tvId, API_KEY, null, "en,null")
+            var logos = if (response.isSuccessful) response.body()?.logos else null
+            
+            Log.d("TMDB_LOGO", "TV $tvId: Found ${logos?.size ?: 0} logos with language filtering")
+            
+            // If no good logos found with language filtering, try without restrictions
+            if (logos.isNullOrEmpty() || selectBestLogo(logos) == null) {
+                Log.d("TMDB_LOGO", "TV $tvId: Trying without language restrictions")
+                response = tmdbApi.getTvImages(tvId, API_KEY, null, null)
+                logos = if (response.isSuccessful) response.body()?.logos else null
+                Log.d("TMDB_LOGO", "TV $tvId: Found ${logos?.size ?: 0} logos without language filtering")
+            }
+            
+            val bestLogo = selectBestLogo(logos)
+            val logoUrl = bestLogo?.let { "${TmdbApi.IMAGE_BASE_URL}${TmdbApi.LOGO_SIZE}${it.filePath}" }
+            Log.d("TMDB_LOGO", "TV $tvId: Selected logo: $logoUrl (votes: ${bestLogo?.voteAverage}, lang: ${bestLogo?.iso6391})")
+            
+            logoUrl
         } catch (e: Exception) {
+            Log.e("TMDB_LOGO", "Error fetching logo for TV $tvId", e)
             null
         }
     }
@@ -508,24 +907,48 @@ class ContentDiscoveryRepository @Inject constructor(
      * Enriches a list of VideoContent with logo URLs from TMDB.
      * This function fetches logos asynchronously for better performance.
      */
-    private suspend fun enrichContentWithLogos(contentList: List<VideoContent>): List<VideoContent> {
-        return contentList.map { content ->
-            try {
-                val logoUrl = when (content.type) {
-                    ContentType.MOVIE -> getMovieLogoFromTmdb(content.tmdbId.toInt())
-                    ContentType.TV_SHOW -> getTvLogoFromTmdb(content.tmdbId.toInt())
+    suspend fun enrichContentWithLogos(contentList: List<VideoContent>): List<VideoContent> {
+        // Only enrich the first 10 items (the UI only renders up to 10 per row)
+        val limit = 10
+        val (toEnrich, remainder) = if (contentList.size > limit) {
+            contentList.take(limit) to contentList.drop(limit)
+        } else contentList to emptyList()
+
+        // Limit concurrent TMDB image calls to avoid network storms
+        val semaphore = Semaphore(permits = 6)
+
+        val enriched = coroutineScope {
+            toEnrich.map { content ->
+                async(Dispatchers.IO) {
+                    semaphore.withPermit {
+                        try {
+                            val logoUrl = when (content.type) {
+                                ContentType.MOVIE -> getMovieLogoFromTmdb(content.tmdbId.toInt())
+                                ContentType.TV_SHOW -> getTvLogoFromTmdb(content.tmdbId.toInt())
+                            }
+
+                            val finalLogoUrl = if (content.tmdbId == "246" && content.type == ContentType.TV_SHOW) {
+                                logoUrl ?: "https://image.tmdb.org/t/p/w500/op8pVzVeDNzGT3gupo3e8hIGPIO.svg"
+                            } else {
+                                logoUrl ?: getLogoUrlForContent(content.title, content.tmdbId.toInt())
+                            }
+
+                            content.copy(logoUrl = finalLogoUrl)
+                        } catch (e: Exception) {
+                            val fallbackLogoUrl = if (content.tmdbId == "246" && content.type == ContentType.TV_SHOW) {
+                                "https://image.tmdb.org/t/p/w500/op8pVzVeDNzGT3gupo3e8hIGPIO.svg"
+                            } else {
+                                getLogoUrlForContent(content.title, content.tmdbId.toInt())
+                            }
+                            content.copy(logoUrl = fallbackLogoUrl)
+                        }
+                    }
                 }
-                
-                // If TMDB logo not found, try fallback mapping
-                val finalLogoUrl = logoUrl ?: getLogoUrlForContent(content.title, content.tmdbId.toInt())
-                
-                content.copy(logoUrl = finalLogoUrl)
-            } catch (e: Exception) {
-                // If logo fetching fails, try fallback mapping
-                val fallbackLogoUrl = getLogoUrlForContent(content.title, content.tmdbId.toInt())
-                content.copy(logoUrl = fallbackLogoUrl)
-            }
+            }.awaitAll()
         }
+
+        // Items beyond limit are returned as-is; they will render without logos initially
+        return enriched + remainder
     }
 }
 

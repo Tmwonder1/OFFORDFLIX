@@ -192,8 +192,9 @@ app.use((error, req, res, next) => {
     ));
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 OnStream TV Backend running on http://localhost:${PORT}`);
+    console.log(`🌐 Network access: http://192.168.1.17:${PORT}`);
     console.log(`📱 Ready to serve Android TV app`);
     if (process.argv.includes('--debug')) {
         console.log(`🔧 Debug mode enabled - Cache disabled`);

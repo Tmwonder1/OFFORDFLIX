@@ -106,5 +106,23 @@ class WatchlistRepository @Inject constructor(
             Result.failure(e)
         }
     }
+    
+    /**
+     * Get watchlist movies only for a profile.
+     */
+    fun getWatchlistMovies(profileId: String): Flow<List<VideoContent>> {
+        return watchlistDataStore.getWatchlist(profileId).map { watchlist ->
+            watchlist.filter { it.type == com.offordflix.domain.model.ContentType.MOVIE }
+        }
+    }
+    
+    /**
+     * Get watchlist TV shows only for a profile.
+     */
+    fun getWatchlistTvShows(profileId: String): Flow<List<VideoContent>> {
+        return watchlistDataStore.getWatchlist(profileId).map { watchlist ->
+            watchlist.filter { it.type == com.offordflix.domain.model.ContentType.TV_SHOW }
+        }
+    }
 }
 

@@ -33,7 +33,7 @@ class MainActivity : ComponentActivity() {
         configureSplashScreen(splashScreen)
         
         setContent {
-            OffordflixTheme {
+            OffordflixTheme(darkTheme = true) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background

@@ -99,6 +99,7 @@ dependencies {
     
     // Image Loading
     implementation("io.coil-kt:coil-compose:2.5.0")
+    implementation("io.coil-kt:coil-svg:2.5.0")
     
     // Local Storage with DataStore Proto
     implementation("androidx.datastore:datastore:1.0.0")

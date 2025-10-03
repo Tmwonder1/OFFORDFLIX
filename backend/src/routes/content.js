@@ -49,10 +49,26 @@ const homeTabs = [
     { id: 4, title: "Top Rated", value: "top_rated", selected: false }
 ];
 
+// Development authentication bypass
+function authenticateTokenOrDev(req, res, next) {
+    const authHeader = req.headers.authorization;
+    const token = authHeader && authHeader.split(' ')[1];
+    
+    // Allow development bypass with special token
+    if (token === 'dev-bypass-token') {
+        req.user = { id: 'dev-user', name: 'Dev User' };
+        req.session = { userId: 'dev-user' };
+        return next();
+    }
+    
+    // Otherwise use normal authentication
+    return authenticateToken(req, res, next);
+}
+
 // GET /api/content/home
-router.get('/home', authenticateToken, async (req, res) => {
+router.get('/home', authenticateTokenOrDev, async (req, res) => {
     try {
-        // Get comprehensive content for home screen
+        // Get comprehensive content for home screen with more variety
         const [
             trendingMovies,
             popularMovies, 
@@ -61,7 +77,21 @@ router.get('/home', authenticateToken, async (req, res) => {
             nowPlayingMovies,
             trendingTvShows,
             popularTvShows,
-            topRatedTvShows
+            topRatedTvShows,
+            onAirTvShows,
+            actionMovies,
+            comedyMovies,
+            dramaMovies,
+            horrorMovies,
+            sciFiMovies,
+            romanceMovies,
+            dramaTvShows,
+            comedyTvShows,
+            actionTvShows,
+            sciFiTvShows,
+            animationContent,
+            familyContent,
+            documentaries
         ] = await Promise.all([
             getTrendingMovies(),
             getPopularMovies(),
@@ -70,7 +100,21 @@ router.get('/home', authenticateToken, async (req, res) => {
             getNowPlayingMovies(),
             getTrendingTvShows(),
             getPopularTvShows(),
-            getTopRatedTvShows()
+            getTopRatedTvShows(),
+            getOnAirTvShows(),
+            getMoviesByGenre(28), // Action
+            getMoviesByGenre(35), // Comedy
+            getMoviesByGenre(18), // Drama
+            getMoviesByGenre(27), // Horror
+            getMoviesByGenre(878), // Science Fiction
+            getMoviesByGenre(10749), // Romance
+            getTvShowsByGenre(18), // Drama TV
+            getTvShowsByGenre(35), // Comedy TV
+            getTvShowsByGenre(10759), // Action & Adventure TV
+            getTvShowsByGenre(10765), // Sci-Fi & Fantasy TV
+            getMoviesByGenre(16), // Animation Movies
+            getMoviesByGenre(10751), // Family Movies
+            getMoviesByGenre(99) // Documentary Movies
         ]);
 
         // Get user's continue watching list (from user data)
@@ -110,7 +154,13 @@ router.get('/home', authenticateToken, async (req, res) => {
                     id: "top_rated_movies",
                     title: "Top Rated Movies",
                     type: "horizontal_list", 
-                    data: topRatedMovies.slice(0, 15)
+                    data: topRatedMovies.slice(0, 20)
+                },
+                {
+                    id: "popular_tv",
+                    title: "Popular TV Shows",
+                    type: "horizontal_list",
+                    data: popularTvShows.slice(0, 20)
                 },
                 {
                     id: "now_playing",
@@ -119,10 +169,64 @@ router.get('/home', authenticateToken, async (req, res) => {
                     data: nowPlayingMovies.slice(0, 15)
                 },
                 {
-                    id: "popular_tv",
-                    title: "Popular TV Shows",
+                    id: "on_air_tv",
+                    title: "Currently Airing TV Shows",
                     type: "horizontal_list",
-                    data: popularTvShows.slice(0, 15)
+                    data: onAirTvShows.slice(0, 15)
+                },
+                {
+                    id: "action_movies",
+                    title: "Action Movies",
+                    type: "horizontal_list",
+                    data: actionMovies.slice(0, 15)
+                },
+                {
+                    id: "comedy_content",
+                    title: "Comedy Gold",
+                    type: "horizontal_list",
+                    data: [...comedyMovies.slice(0, 8), ...comedyTvShows.slice(0, 7)]
+                },
+                {
+                    id: "drama_content",
+                    title: "Award-Winning Dramas",
+                    type: "horizontal_list",
+                    data: [...dramaMovies.slice(0, 8), ...dramaTvShows.slice(0, 7)]
+                },
+                {
+                    id: "horror_movies",
+                    title: "Horror & Thriller",
+                    type: "horizontal_list",
+                    data: horrorMovies.slice(0, 15)
+                },
+                {
+                    id: "scifi_content",
+                    title: "Sci-Fi & Fantasy",
+                    type: "horizontal_list",
+                    data: [...sciFiMovies.slice(0, 8), ...sciFiTvShows.slice(0, 7)]
+                },
+                {
+                    id: "romance_movies",
+                    title: "Romance & Love Stories",
+                    type: "horizontal_list",
+                    data: romanceMovies.slice(0, 15)
+                },
+                {
+                    id: "animation_content",
+                    title: "Animation & Animated",
+                    type: "horizontal_list",
+                    data: animationContent.slice(0, 15)
+                },
+                {
+                    id: "family_content",
+                    title: "Family Entertainment",
+                    type: "horizontal_list",
+                    data: familyContent.slice(0, 15)
+                },
+                {
+                    id: "documentaries",
+                    title: "Documentaries",
+                    type: "horizontal_list",
+                    data: documentaries.slice(0, 12)
                 },
                 {
                     id: "upcoming_movies",
@@ -290,6 +394,346 @@ router.get('/movies', authenticateToken, async (req, res) => {
             'Failed to load movies',
             'server', 500,
             'Unable to fetch movie list',
+            true, false
+        ));
+    }
+});
+
+// GET /api/content/movies/home - Netflix-style movies screen with content rows
+router.get('/movies/home', authenticateTokenOrDev, async (req, res) => {
+    try {
+        // Get comprehensive movie content for movies screen with more variety
+        const [
+            trendingMovies,
+            popularMovies, 
+            topRatedMovies,
+            upcomingMovies,
+            nowPlayingMovies,
+            actionMovies,
+            comedyMovies,
+            dramaMovies,
+            horrorMovies,
+            sciFiMovies,
+            romanceMovies,
+            thrillerMovies,
+            animationMovies,
+            familyMovies,
+            crimeMovies,
+            adventureMovies,
+            fantasyMovies,
+            warMovies,
+            westernMovies,
+            documentaryMovies
+        ] = await Promise.all([
+            getTrendingMovies(),
+            getPopularMovies(),
+            getTopRatedMovies(), 
+            getUpcomingMovies(),
+            getNowPlayingMovies(),
+            getMoviesByGenre(28), // Action
+            getMoviesByGenre(35), // Comedy
+            getMoviesByGenre(18), // Drama
+            getMoviesByGenre(27), // Horror
+            getMoviesByGenre(878), // Science Fiction
+            getMoviesByGenre(10749), // Romance
+            getMoviesByGenre(53), // Thriller
+            getMoviesByGenre(16), // Animation
+            getMoviesByGenre(10751), // Family
+            getMoviesByGenre(80), // Crime
+            getMoviesByGenre(12), // Adventure
+            getMoviesByGenre(14), // Fantasy
+            getMoviesByGenre(10752), // War
+            getMoviesByGenre(37), // Western
+            getMoviesByGenre(99) // Documentary
+        ]);
+
+        // Create rich movies content structure similar to home screen
+        const moviesResponse = {
+            id: "movies_main",
+            type: 1,
+            title: "Movies",
+            slide: [
+                ...trendingMovies.slice(0, 5)
+            ], // Top 5 for hero slider
+            sections: [
+                {
+                    id: "trending_movies",
+                    title: "Trending Movies",
+                    type: "horizontal_list",
+                    data: trendingMovies.slice(0, 20)
+                },
+                {
+                    id: "popular_movies", 
+                    title: "Popular Movies",
+                    type: "horizontal_list",
+                    data: popularMovies.slice(0, 20)
+                },
+                {
+                    id: "top_rated_movies",
+                    title: "Top Rated Movies",
+                    type: "horizontal_list", 
+                    data: topRatedMovies.slice(0, 20)
+                },
+                {
+                    id: "now_playing",
+                    title: "Now Playing in Theaters",
+                    type: "horizontal_list",
+                    data: nowPlayingMovies.slice(0, 20)
+                },
+                {
+                    id: "upcoming_movies",
+                    title: "Coming Soon",
+                    type: "horizontal_list",
+                    data: upcomingMovies.slice(0, 15)
+                },
+                {
+                    id: "action_movies",
+                    title: "Action & Adventure",
+                    type: "horizontal_list",
+                    data: [...actionMovies.slice(0, 10), ...adventureMovies.slice(0, 5)]
+                },
+                {
+                    id: "comedy_movies",
+                    title: "Comedy Movies",
+                    type: "horizontal_list",
+                    data: comedyMovies.slice(0, 15)
+                },
+                {
+                    id: "drama_movies",
+                    title: "Award-Winning Dramas",
+                    type: "horizontal_list",
+                    data: dramaMovies.slice(0, 15)
+                },
+                {
+                    id: "horror_thriller",
+                    title: "Horror & Thriller",
+                    type: "horizontal_list",
+                    data: [...horrorMovies.slice(0, 8), ...thrillerMovies.slice(0, 7)]
+                },
+                {
+                    id: "scifi_fantasy",
+                    title: "Sci-Fi & Fantasy",
+                    type: "horizontal_list",
+                    data: [...sciFiMovies.slice(0, 8), ...fantasyMovies.slice(0, 7)]
+                },
+                {
+                    id: "romance_movies",
+                    title: "Romance & Love Stories",
+                    type: "horizontal_list",
+                    data: romanceMovies.slice(0, 15)
+                },
+                {
+                    id: "animation_movies",
+                    title: "Animation & Animated",
+                    type: "horizontal_list",
+                    data: animationMovies.slice(0, 15)
+                },
+                {
+                    id: "family_movies",
+                    title: "Family Entertainment",
+                    type: "horizontal_list",
+                    data: familyMovies.slice(0, 15)
+                },
+                {
+                    id: "crime_movies",
+                    title: "Crime & Mystery",
+                    type: "horizontal_list",
+                    data: crimeMovies.slice(0, 15)
+                },
+                {
+                    id: "war_western",
+                    title: "War & Western",
+                    type: "horizontal_list",
+                    data: [...warMovies.slice(0, 8), ...westernMovies.slice(0, 7)]
+                },
+                {
+                    id: "documentary_movies",
+                    title: "Documentary Films",
+                    type: "horizontal_list",
+                    data: documentaryMovies.slice(0, 12)
+                }
+            ],
+            data: [
+                ...trendingMovies.slice(0, 10),
+                ...popularMovies.slice(0, 10)
+            ]
+        };
+
+        res.status(200).json({
+            success: true,
+            ...moviesResponse
+        });
+    } catch (error) {
+        console.error('Movies home content error:', error);
+        handleErrorResponse(res, new ErrorObject(
+            'Failed to load movies content',
+            'server', 500,
+            'Unable to fetch movies screen data',
+            true, false
+        ));
+    }
+});
+
+// GET /api/content/tv-shows/home - Netflix-style TV shows screen with content rows
+router.get('/tv-shows/home', authenticateTokenOrDev, async (req, res) => {
+    try {
+        // Get comprehensive TV show content for TV shows screen with more variety
+        const [
+            trendingTvShows,
+            popularTvShows, 
+            topRatedTvShows,
+            onAirTvShows,
+            dramaTvShows,
+            comedyTvShows,
+            actionTvShows,
+            scifiTvShows,
+            animationTvShows,
+            crimeTvShows,
+            mysteryTvShows,
+            familyTvShows,
+            kidsTvShows,
+            realityTvShows,
+            talkTvShows,
+            documentaryTvShows,
+            newsTvShows,
+            warTvShows
+        ] = await Promise.all([
+            getTrendingTvShows(),
+            getPopularTvShows(),
+            getTopRatedTvShows(), 
+            getOnAirTvShows(),
+            getTvShowsByGenre(18), // Drama
+            getTvShowsByGenre(35), // Comedy
+            getTvShowsByGenre(10759), // Action & Adventure
+            getTvShowsByGenre(10765), // Sci-Fi & Fantasy
+            getTvShowsByGenre(16), // Animation
+            getTvShowsByGenre(80), // Crime
+            getTvShowsByGenre(9648), // Mystery
+            getTvShowsByGenre(10751), // Family
+            getTvShowsByGenre(10762), // Kids
+            getTvShowsByGenre(10764), // Reality
+            getTvShowsByGenre(10767), // Talk
+            getTvShowsByGenre(99), // Documentary
+            getTvShowsByGenre(10763), // News
+            getTvShowsByGenre(10768) // War & Politics
+        ]);
+
+        // Create rich TV shows content structure similar to home screen
+        const tvShowsResponse = {
+            id: "tvshows_main",
+            type: 1,
+            title: "TV Shows",
+            slide: [
+                ...trendingTvShows.slice(0, 5)
+            ], // Top 5 for hero slider
+            sections: [
+                {
+                    id: "trending_tv",
+                    title: "Trending TV Shows",
+                    type: "horizontal_list",
+                    data: trendingTvShows.slice(0, 20)
+                },
+                {
+                    id: "popular_tv", 
+                    title: "Popular TV Shows",
+                    type: "horizontal_list",
+                    data: popularTvShows.slice(0, 20)
+                },
+                {
+                    id: "top_rated_tv",
+                    title: "Top Rated TV Shows",
+                    type: "horizontal_list", 
+                    data: topRatedTvShows.slice(0, 20)
+                },
+                {
+                    id: "on_air_tv",
+                    title: "Currently Airing",
+                    type: "horizontal_list",
+                    data: onAirTvShows.slice(0, 20)
+                },
+                {
+                    id: "drama_tv",
+                    title: "Award-Winning Dramas",
+                    type: "horizontal_list",
+                    data: dramaTvShows.slice(0, 15)
+                },
+                {
+                    id: "comedy_tv",
+                    title: "Comedy Series",
+                    type: "horizontal_list",
+                    data: comedyTvShows.slice(0, 15)
+                },
+                {
+                    id: "action_tv",
+                    title: "Action & Adventure",
+                    type: "horizontal_list",
+                    data: actionTvShows.slice(0, 15)
+                },
+                {
+                    id: "scifi_tv",
+                    title: "Sci-Fi & Fantasy",
+                    type: "horizontal_list",
+                    data: scifiTvShows.slice(0, 15)
+                },
+                {
+                    id: "crime_mystery_tv",
+                    title: "Crime & Mystery",
+                    type: "horizontal_list",
+                    data: [...crimeTvShows.slice(0, 8), ...mysteryTvShows.slice(0, 7)]
+                },
+                {
+                    id: "animation_tv",
+                    title: "Animated Series",
+                    type: "horizontal_list",
+                    data: animationTvShows.slice(0, 15)
+                },
+                {
+                    id: "family_kids_tv",
+                    title: "Family & Kids",
+                    type: "horizontal_list",
+                    data: [...familyTvShows.slice(0, 8), ...kidsTvShows.slice(0, 7)]
+                },
+                {
+                    id: "reality_tv",
+                    title: "Reality TV",
+                    type: "horizontal_list",
+                    data: realityTvShows.slice(0, 15)
+                },
+                {
+                    id: "talk_shows",
+                    title: "Talk Shows",
+                    type: "horizontal_list",
+                    data: talkTvShows.slice(0, 12)
+                },
+                {
+                    id: "documentary_tv",
+                    title: "Documentary Series",
+                    type: "horizontal_list",
+                    data: documentaryTvShows.slice(0, 12)
+                },
+                {
+                    id: "news_politics",
+                    title: "News & Politics",
+                    type: "horizontal_list",
+                    data: [...newsTvShows.slice(0, 6), ...warTvShows.slice(0, 6)]
+                }
+            ],
+            data: [
+                ...trendingTvShows.slice(0, 10),
+                ...popularTvShows.slice(0, 10)
+            ]
+        };
+
+        res.status(200).json({
+            success: true,
+            ...tvShowsResponse
+        });
+    } catch (error) {
+        console.error('TV shows home content error:', error);
+        handleErrorResponse(res, new ErrorObject(
+            'Failed to load TV shows content',
+            'server', 500,
+            'Unable to fetch TV shows screen data',
             true, false
         ));
     }

@@ -64,13 +64,23 @@ function getLogoFromImages(images) {
         return null;
     }
     
-    // Get the best logo (highest vote average, or first if none voted)
-    const bestLogo = images.logos.reduce((best, current) => {
-        if (!best) return current;
-        return current.vote_average > best.vote_average ? current : best;
-    }, null);
+    // First, try to find logos with votes > 0 (higher quality/community approved)
+    const votedLogos = images.logos.filter(logo => logo.vote_average > 0);
+    if (votedLogos.length > 0) {
+        const bestVotedLogo = votedLogos.reduce((best, current) => {
+            return current.vote_average > best.vote_average ? current : best;
+        });
+        return `${TMDB_IMAGE_BASE_URL}${bestVotedLogo.file_path}`;
+    }
     
-    return bestLogo ? `${TMDB_IMAGE_BASE_URL}${bestLogo.file_path}` : null;
+    // If no voted logos, prefer English logos
+    const englishLogos = images.logos.filter(logo => logo.iso_639_1 === 'en');
+    if (englishLogos.length > 0) {
+        return `${TMDB_IMAGE_BASE_URL}${englishLogos[0].file_path}`;
+    }
+    
+    // Finally, return any available logo
+    return `${TMDB_IMAGE_BASE_URL}${images.logos[0].file_path}`;
 }
 
 // Transform TMDB movie data to our format

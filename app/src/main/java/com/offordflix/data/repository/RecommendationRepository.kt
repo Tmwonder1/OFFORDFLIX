@@ -237,6 +237,108 @@ class RecommendationRepository @Inject constructor(
     }
     
     /**
+     * Get movie-specific recommendations for profile.
+     */
+    fun getRecommendedMoviesForYou(
+        profileId: String,
+        limit: Int = 20
+    ): Flow<List<VideoContent>> = flow {
+        try {
+            // Get available movie content from multiple sources
+            val popularMovies = contentDiscoveryRepository.getPopularMovies().take(1).first()
+            val topRatedMovies = contentDiscoveryRepository.getTopRatedMovies().take(1).first()
+            val trendingMovies = contentDiscoveryRepository.getTrendingMovies().take(1).first()
+            
+            val availableMovies = (popularMovies + topRatedMovies + trendingMovies)
+                .distinctBy { it.id }
+                .filter { it.type == com.offordflix.domain.model.ContentType.MOVIE }
+            
+            val recommendations = recommendationEngine.getPersonalizedRecommendations(
+                profileId = profileId,
+                availableContent = availableMovies,
+                limit = limit
+            )
+            
+            emit(recommendations)
+        } catch (e: Exception) {
+            emit(emptyList())
+        }
+    }
+    
+    /**
+     * Get personalized trending movies.
+     */
+    fun getPersonalizedTrendingMovies(
+        profileId: String,
+        limit: Int = 15
+    ): Flow<List<VideoContent>> = flow {
+        try {
+            val trendingMovies = contentDiscoveryRepository.getTrendingMovies().take(1).first()
+            
+            val personalizedTrending = recommendationEngine.getPersonalizedTrending(
+                profileId = profileId,
+                trendingContent = trendingMovies,
+                limit = limit
+            )
+            
+            emit(personalizedTrending)
+        } catch (e: Exception) {
+            emit(emptyList())
+        }
+    }
+    
+    /**
+     * Get TV show-specific recommendations for profile.
+     */
+    fun getRecommendedTvShowsForYou(
+        profileId: String,
+        limit: Int = 20
+    ): Flow<List<VideoContent>> = flow {
+        try {
+            // Get available TV show content from multiple sources
+            val popularTvShows = contentDiscoveryRepository.getPopularTvShows().take(1).first()
+            val topRatedTvShows = contentDiscoveryRepository.getTopRatedTvShows().take(1).first()
+            val trendingTvShows = contentDiscoveryRepository.getTrendingTvShows().take(1).first()
+            
+            val availableTvShows = (popularTvShows + topRatedTvShows + trendingTvShows)
+                .distinctBy { it.id }
+                .filter { it.type == com.offordflix.domain.model.ContentType.TV_SHOW }
+            
+            val recommendations = recommendationEngine.getPersonalizedRecommendations(
+                profileId = profileId,
+                availableContent = availableTvShows,
+                limit = limit
+            )
+            
+            emit(recommendations)
+        } catch (e: Exception) {
+            emit(emptyList())
+        }
+    }
+    
+    /**
+     * Get personalized trending TV shows.
+     */
+    fun getPersonalizedTrendingTvShows(
+        profileId: String,
+        limit: Int = 15
+    ): Flow<List<VideoContent>> = flow {
+        try {
+            val trendingTvShows = contentDiscoveryRepository.getTrendingTvShows().take(1).first()
+            
+            val personalizedTrending = recommendationEngine.getPersonalizedTrending(
+                profileId = profileId,
+                trendingContent = trendingTvShows,
+                limit = limit
+            )
+            
+            emit(personalizedTrending)
+        } catch (e: Exception) {
+            emit(emptyList())
+        }
+    }
+    
+    /**
      * Helper function to get genre ID (simplified mapping).
      */
     private fun getGenreId(genreName: String): Int {

@@ -2,6 +2,7 @@ package com.offordflix.di
 
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import com.offordflix.data.api.TmdbApi
+import com.offordflix.data.api.OffordflixApi
 import com.offordflix.data.local.WatchlistDataStore
 import com.offordflix.data.repository.ContentDiscoveryRepository
 import com.offordflix.data.repository.WatchlistRepository
@@ -11,6 +12,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Named
 import android.content.Context
 import kotlinx.serialization.json.Json
 import okhttp3.MediaType.Companion.toMediaType
@@ -88,6 +90,34 @@ object NetworkModule {
     }
 
     /**
+     * Provide Retrofit instance for Offordflix Backend API.
+     */
+    @Provides
+    @Singleton
+    @Named("offordflix")
+    fun provideOffordflixRetrofit(
+        okHttpClient: OkHttpClient,
+        json: Json
+    ): Retrofit {
+        return Retrofit.Builder()
+            .baseUrl(OffordflixApi.BASE_URL)
+            .client(okHttpClient)
+            .addConverterFactory(
+                json.asConverterFactory("application/json".toMediaType())
+            )
+            .build()
+    }
+
+    /**
+     * Provide Offordflix Backend API service.
+     */
+    @Provides
+    @Singleton
+    fun provideOffordflixApi(@Named("offordflix") retrofit: Retrofit): OffordflixApi {
+        return retrofit.create(OffordflixApi::class.java)
+    }
+
+    /**
      * Provide ContentFilterRepository.
      */
     @Provides
@@ -103,9 +133,10 @@ object NetworkModule {
     @Singleton
     fun provideContentDiscoveryRepository(
         tmdbApi: TmdbApi,
+        offordflixApi: OffordflixApi,
         contentFilterRepository: ContentFilterRepository
     ): ContentDiscoveryRepository {
-        return ContentDiscoveryRepository(tmdbApi, contentFilterRepository)
+        return ContentDiscoveryRepository(tmdbApi, offordflixApi, contentFilterRepository)
     }
 
     /**

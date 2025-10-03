@@ -1,15 +1,13 @@
-package com.offordflix.ui.screens.home
+package com.offordflix.ui.screens.movies
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.offordflix.data.repository.ContentDiscoveryRepository
 import com.offordflix.data.repository.WatchlistRepository
 import com.offordflix.data.repository.RecommendationRepository
 import com.offordflix.data.ml.InteractionType
-import com.offordflix.data.repository.ViewingContext
-import com.offordflix.domain.model.Profile
 import com.offordflix.ui.cache.ContentCacheManager
+import com.offordflix.domain.model.Profile
 import com.offordflix.domain.model.VideoContent
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
@@ -17,21 +15,21 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * ViewModel for home screen content discovery.
+ * ViewModel for movies screen content discovery.
  * 
- * Manages content loading, watchlist operations, and user interactions
- * for the Netflix-style home screen experience.
+ * Manages movie-specific content loading, watchlist operations, and user interactions
+ * for the Netflix-style movies screen experience.
  */
 @HiltViewModel
-class HomeViewModel @Inject constructor(
+class MoviesViewModel @Inject constructor(
     private val contentDiscoveryRepository: ContentDiscoveryRepository,
     private val watchlistRepository: WatchlistRepository,
     private val recommendationRepository: RecommendationRepository
 ) : ViewModel() {
 
     // Internal state
-    private val _uiState = MutableStateFlow(HomeUiState())
-    val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+    private val _uiState = MutableStateFlow(MoviesUiState())
+    val uiState: StateFlow<MoviesUiState> = _uiState.asStateFlow()
     
     // Current active profile
     private var currentProfile: Profile? = null
@@ -47,12 +45,12 @@ class HomeViewModel @Inject constructor(
      */
     fun initializeWithProfile(profile: Profile) {
         if (!isInitialized || currentProfile?.id != profile.id) {
-            Log.d("HomeViewModel", "Initializing with profile: ${profile.id}")
+            android.util.Log.d("MoviesViewModel", "Initializing with profile: ${profile.id}")
             currentProfile = profile
             isInitialized = true
             loadContentIfNeeded()
         } else {
-            Log.d("HomeViewModel", "Already initialized with profile: ${profile.id}, skipping initialization")
+            android.util.Log.d("MoviesViewModel", "Already initialized with profile: ${profile.id}, skipping initialization")
         }
     }
     
@@ -62,24 +60,24 @@ class HomeViewModel @Inject constructor(
     private fun loadContentIfNeeded() {
         val currentTime = System.currentTimeMillis()
         val hasContent = uiState.value.enhancedContent != null || 
-                        uiState.value.trendingContent.isNotEmpty()
+                        uiState.value.trendingMovies.isNotEmpty()
         val isCacheValid = (currentTime - contentLoadTime) < cacheValidityDuration
         
         if (!hasContent || !isCacheValid) {
-            Log.d("HomeViewModel", "Loading content - hasContent: $hasContent, cacheValid: $isCacheValid")
+            android.util.Log.d("MoviesViewModel", "Loading content - hasContent: $hasContent, cacheValid: $isCacheValid")
             loadContent()
         } else {
-            Log.d("HomeViewModel", "Using cached content - age: ${(currentTime - contentLoadTime) / 1000}s")
+            android.util.Log.d("MoviesViewModel", "Using cached content - age: ${(currentTime - contentLoadTime) / 1000}s")
         }
     }
     
     /**
-     * Load all content for the home screen.
+     * Load all movie content for the movies screen.
      */
     fun loadContent() {
         // Prevent concurrent loading
         if (isContentLoading) {
-            Log.d("HomeViewModel", "Content already loading, skipping duplicate request")
+            android.util.Log.d("MoviesViewModel", "Content already loading, skipping duplicate request")
             return
         }
         
@@ -88,23 +86,24 @@ class HomeViewModel @Inject constructor(
             _uiState.update { it.copy(isLoading = true, error = null) }
             
             try {
-                // Try to load enhanced content first
-                launch { loadEnhancedContent() }
+                // Try to load enhanced movies content first
+                launch { loadEnhancedMoviesContent() }
                 
                 // Load fallback content in parallel (for when backend is unavailable)
-                launch { loadTrendingContent() }
+                launch { loadTrendingMovies() }
                 launch { loadPopularMovies() }
-                launch { loadPopularTvShows() }
                 launch { loadTopRatedMovies() }
-                launch { loadTopRatedTvShows() }
-                launch { loadWatchlist() }
-                launch { loadContinueWatching() }
+                launch { loadUpcomingMovies() }
+                launch { loadNowPlayingMovies() }
+                launch { loadActionMovies() }
+                launch { loadComedyMovies() }
+                launch { loadDramaMovies() }
+                launch { loadWatchlistMovies() }
                 
                 // Only load ML features if profile is set
                 if (currentProfile != null) {
-                    launch { loadRecommendations() }
-                    launch { loadPersonalizedTrending() }
-                    launch { loadFavoriteGenreRecommendations() }
+                    launch { loadRecommendedMovies() }
+                    launch { loadPersonalizedMovieTrending() }
                 }
                 
                 // Update cache timestamp on successful load
@@ -114,7 +113,7 @@ class HomeViewModel @Inject constructor(
                 _uiState.update { 
                     it.copy(
                         isLoading = false, 
-                        error = e.message ?: "Failed to load content"
+                        error = e.message ?: "Failed to load movie content"
                     )
                 }
             } finally {
@@ -124,13 +123,13 @@ class HomeViewModel @Inject constructor(
     }
     
     /**
-     * Load enhanced content with all content rows from backend.
+     * Load enhanced movies content with all movie rows from backend.
      */
-    private suspend fun loadEnhancedContent() {
+    private suspend fun loadEnhancedMoviesContent() {
         // Check cache first
-        val cachedContent = ContentCacheManager.getCachedHomeContent()
+        val cachedContent = ContentCacheManager.getCachedMoviesContent()
         if (cachedContent != null) {
-            Log.d("HomeViewModel", "Using cached home content with ${cachedContent.sections.size} sections")
+            android.util.Log.d("MoviesViewModel", "Using cached movies content with ${cachedContent.sections.size} sections")
             _uiState.update { 
                 it.copy(
                     enhancedContent = cachedContent,
@@ -140,16 +139,16 @@ class HomeViewModel @Inject constructor(
             return
         }
         
-        contentDiscoveryRepository.getEnhancedHomeContent(currentProfile)
+        contentDiscoveryRepository.getEnhancedMoviesContent(currentProfile)
             .catch { e -> 
                 // Don't fail the whole screen if enhanced content fails
-                Log.d("HomeViewModel", "Enhanced content loading failed: ${e.message}")
+                println("Enhanced movies content loading failed: ${e.message}")
             }
             .collect { enhancedContent ->
                 if (enhancedContent != null) {
-                    Log.d("HomeViewModel", "Enhanced content loaded successfully with ${enhancedContent.sections.size} sections")
-                    
-                    // 1) Immediately show server content (without logos) to avoid blank UI
+                    android.util.Log.d("MoviesViewModel", "Enhanced movies content loaded successfully with ${enhancedContent.sections.size} sections")
+
+                    // Immediately use the raw content (no logos yet) for instant UI
                     _uiState.update {
                         it.copy(
                             enhancedContent = enhancedContent,
@@ -157,15 +156,13 @@ class HomeViewModel @Inject constructor(
                         )
                     }
 
-                    // 2) Enrich logos in background and update when ready
+                    // Enrich logos in background and update/cache when ready
                     viewModelScope.launch {
                         try {
                             val enrichedSlide = contentDiscoveryRepository.enrichContentWithLogos(
                                 enhancedContent.slide.map { it.toVideoContent() }
                             )
-                            
                             val enrichedSections = enhancedContent.sections.map { section ->
-                                Log.d("HomeViewModel", "Enriching section '${section.title}' with ${section.data.size} items")
                                 val enrichedSectionData = contentDiscoveryRepository.enrichContentWithLogos(
                                     section.data.map { it.toVideoContent() }
                                 )
@@ -180,7 +177,7 @@ class HomeViewModel @Inject constructor(
                                 },
                                 sections = enrichedSections
                             )
-                            ContentCacheManager.setCachedHomeContent(enrichedEnhancedContent)
+                            ContentCacheManager.setCachedMoviesContent(enrichedEnhancedContent)
                             _uiState.update {
                                 it.copy(
                                     enhancedContent = enrichedEnhancedContent,
@@ -188,11 +185,9 @@ class HomeViewModel @Inject constructor(
                                 )
                             }
                         } catch (e: Exception) {
-                            Log.d("HomeViewModel", "Logo enrichment failed: ${e.message}")
+                            // Ignore enrichment failure to keep UI responsive
                         }
                     }
-                } else {
-                    Log.d("HomeViewModel", "Enhanced content was null, falling back to legacy content")
                 }
             }
     }
@@ -213,17 +208,17 @@ class HomeViewModel @Inject constructor(
     }
     
     /**
-     * Load trending content and set featured content.
+     * Load trending movies and set featured content.
      */
-    private suspend fun loadTrendingContent() {
-        contentDiscoveryRepository.getTrendingContent(currentProfile)
+    private suspend fun loadTrendingMovies() {
+        contentDiscoveryRepository.getTrendingMovies(currentProfile)
             .catch { e -> 
                 _uiState.update { it.copy(error = e.message) }
             }
             .collect { content ->
                 _uiState.update { 
                     it.copy(
-                        trendingContent = content,
+                        trendingMovies = content,
                         featuredContent = content.firstOrNull() // Use first trending as featured
                     ) 
                 }
@@ -244,19 +239,6 @@ class HomeViewModel @Inject constructor(
     }
     
     /**
-     * Load popular TV shows.
-     */
-    private suspend fun loadPopularTvShows() {
-        contentDiscoveryRepository.getPopularTvShows(currentProfile)
-            .catch { e -> 
-                _uiState.update { it.copy(error = e.message) }
-            }
-            .collect { content ->
-                _uiState.update { it.copy(popularTvShows = content) }
-            }
-    }
-    
-    /**
      * Load top-rated movies.
      */
     private suspend fun loadTopRatedMovies() {
@@ -270,50 +252,87 @@ class HomeViewModel @Inject constructor(
     }
     
     /**
-     * Load top-rated TV shows.
+     * Load upcoming movies.
      */
-    private suspend fun loadTopRatedTvShows() {
-        contentDiscoveryRepository.getTopRatedTvShows(currentProfile)
+    private suspend fun loadUpcomingMovies() {
+        contentDiscoveryRepository.getUpcomingMovies(currentProfile)
             .catch { e -> 
                 _uiState.update { it.copy(error = e.message) }
             }
             .collect { content ->
-                _uiState.update { it.copy(topRatedTvShows = content) }
+                _uiState.update { it.copy(upcomingMovies = content) }
             }
     }
     
     /**
-     * Load user's watchlist.
+     * Load now playing movies.
      */
-    private suspend fun loadWatchlist() {
+    private suspend fun loadNowPlayingMovies() {
+        contentDiscoveryRepository.getNowPlayingMovies(currentProfile)
+            .catch { e -> 
+                _uiState.update { it.copy(error = e.message) }
+            }
+            .collect { content ->
+                _uiState.update { it.copy(nowPlayingMovies = content) }
+            }
+    }
+    
+    /**
+     * Load action movies.
+     */
+    private suspend fun loadActionMovies() {
+        contentDiscoveryRepository.getMoviesByGenre("Action", currentProfile)
+            .catch { e -> 
+                _uiState.update { it.copy(error = e.message) }
+            }
+            .collect { content ->
+                _uiState.update { it.copy(actionMovies = content) }
+            }
+    }
+    
+    /**
+     * Load comedy movies.
+     */
+    private suspend fun loadComedyMovies() {
+        contentDiscoveryRepository.getMoviesByGenre("Comedy", currentProfile)
+            .catch { e -> 
+                _uiState.update { it.copy(error = e.message) }
+            }
+            .collect { content ->
+                _uiState.update { it.copy(comedyMovies = content) }
+            }
+    }
+    
+    /**
+     * Load drama movies.
+     */
+    private suspend fun loadDramaMovies() {
+        contentDiscoveryRepository.getMoviesByGenre("Drama", currentProfile)
+            .catch { e -> 
+                _uiState.update { it.copy(error = e.message) }
+            }
+            .collect { content ->
+                _uiState.update { it.copy(dramaMovies = content) }
+            }
+    }
+    
+    /**
+     * Load user's watchlist movies only.
+     */
+    private suspend fun loadWatchlistMovies() {
         currentProfile?.let { profile ->
-            watchlistRepository.getWatchlist(profile.id)
+            watchlistRepository.getWatchlistMovies(profile.id)
                 .catch { e -> 
                     _uiState.update { it.copy(error = e.message) }
                 }
                 .collect { content ->
-                    _uiState.update { it.copy(watchlist = content) }
+                    _uiState.update { it.copy(watchlistMovies = content) }
                 }
         }
     }
     
     /**
-     * Load continue watching items.
-     */
-    private suspend fun loadContinueWatching() {
-        currentProfile?.let { profile ->
-            watchlistRepository.getContinueWatching(profile.id)
-                .catch { e -> 
-                    _uiState.update { it.copy(error = e.message) }
-                }
-                .collect { content ->
-                    _uiState.update { it.copy(continueWatching = content) }
-                }
-        }
-    }
-    
-    /**
-     * Add content to watchlist with ML tracking.
+     * Add movie to watchlist with ML tracking.
      */
     fun addToWatchlist(content: VideoContent) {
         viewModelScope.launch {
@@ -321,7 +340,7 @@ class HomeViewModel @Inject constructor(
                 currentProfile?.let { profile ->
                     watchlistRepository.addToWatchlist(profile.id, content)
                     _uiState.update { state ->
-                        state.copy(watchlist = state.watchlist + content)
+                        state.copy(watchlistMovies = state.watchlistMovies + content)
                     }
                     // Track for ML learning
                     trackContentInteraction(content, InteractionType.LIKE)
@@ -333,7 +352,7 @@ class HomeViewModel @Inject constructor(
     }
     
     /**
-     * Remove content from watchlist with ML tracking.
+     * Remove movie from watchlist with ML tracking.
      */
     fun removeFromWatchlist(content: VideoContent) {
         viewModelScope.launch {
@@ -341,7 +360,7 @@ class HomeViewModel @Inject constructor(
                 currentProfile?.let { profile ->
                     watchlistRepository.removeFromWatchlist(profile.id, content.id)
                     _uiState.update { state ->
-                        state.copy(watchlist = state.watchlist.filterNot { it.id == content.id })
+                        state.copy(watchlistMovies = state.watchlistMovies.filterNot { it.id == content.id })
                     }
                 }
             } catch (e: Exception) {
@@ -351,11 +370,11 @@ class HomeViewModel @Inject constructor(
     }
     
     /**
-     * Search for content.
+     * Search for movies.
      */
-    fun searchContent(query: String) {
+    fun searchMovies(query: String) {
         viewModelScope.launch {
-            contentDiscoveryRepository.searchContent(query, currentProfile)
+            contentDiscoveryRepository.searchMovies(query, currentProfile)
                 .catch { e -> 
                     _uiState.update { it.copy(error = e.message) }
                 }
@@ -373,130 +392,43 @@ class HomeViewModel @Inject constructor(
     }
     
     /**
-     * Load ML-powered recommendations.
+     * Load ML-powered movie recommendations.
      */
-    private suspend fun loadRecommendations() {
+    private suspend fun loadRecommendedMovies() {
         currentProfile?.let { profile ->
             try {
-                recommendationRepository.getRecommendedForYou(profile.id)
+                recommendationRepository.getRecommendedMoviesForYou(profile.id)
                     .catch { e ->
                         // ML features are optional - don't fail the whole screen
-                        println("ML Recommendations failed: ${e.message}")
+                        println("ML Movie Recommendations failed: ${e.message}")
                     }
                     .collect { recommendations ->
-                        _uiState.update { it.copy(recommendedForYou = recommendations) }
+                        _uiState.update { it.copy(recommendedMovies = recommendations) }
                     }
             } catch (e: Exception) {
                 // Silently fail ML features to prevent white screen
-                println("ML Recommendations error: ${e.message}")
+                println("ML Movie Recommendations error: ${e.message}")
             }
         }
     }
     
     /**
-     * Load personalized trending content.
+     * Load personalized trending movies.
      */
-    private suspend fun loadPersonalizedTrending() {
+    private suspend fun loadPersonalizedMovieTrending() {
         currentProfile?.let { profile ->
             try {
-                recommendationRepository.getPersonalizedTrending(profile.id)
+                recommendationRepository.getPersonalizedTrendingMovies(profile.id)
                     .catch { e ->
                         // ML features are optional - don't fail the whole screen
-                        println("Personalized Trending failed: ${e.message}")
+                        println("Personalized Movie Trending failed: ${e.message}")
                     }
                     .collect { trending ->
-                        _uiState.update { it.copy(personalizedTrending = trending) }
+                        _uiState.update { it.copy(personalizedTrendingMovies = trending) }
                     }
             } catch (e: Exception) {
                 // Silently fail ML features to prevent white screen
-                println("Personalized Trending error: ${e.message}")
-            }
-        }
-    }
-    
-    /**
-     * Load recommendations based on favorite genres.
-     */
-    private suspend fun loadFavoriteGenreRecommendations() {
-        currentProfile?.let { profile ->
-            try {
-                recommendationRepository.getFavoriteGenres(profile.id)
-                    .catch { e ->
-                        // ML features are optional - don't fail the whole screen
-                        println("Favorite Genres failed: ${e.message}")
-                    }
-                    .collect { favoriteGenres ->
-                        if (favoriteGenres.isNotEmpty()) {
-                            val topGenre = favoriteGenres.first()
-                            recommendationRepository.getMoreLikeGenre(profile.id, topGenre)
-                                .catch { e ->
-                                    println("Genre Recommendations failed: ${e.message}")
-                                }
-                                .collect { genreRecommendations ->
-                                    _uiState.update { 
-                                        it.copy(
-                                            favoriteGenreRecommendations = genreRecommendations,
-                                            favoriteGenre = topGenre
-                                        ) 
-                                    }
-                                }
-                        }
-                    }
-            } catch (e: Exception) {
-                // Silently fail ML features to prevent white screen
-                println("Favorite Genre Recommendations error: ${e.message}")
-            }
-        }
-    }
-    
-    /**
-     * Get "Because You Watched" recommendations for a specific content.
-     */
-    fun getBecauseYouWatched(content: VideoContent) {
-        viewModelScope.launch {
-            currentProfile?.let { profile ->
-                recommendationRepository.getBecauseYouWatched(profile.id, content)
-                    .catch { e ->
-                        _uiState.update { it.copy(error = e.message) }
-                    }
-                    .collect { recommendations ->
-                        _uiState.update { 
-                            it.copy(
-                                becauseYouWatchedContent = content,
-                                becauseYouWatchedRecommendations = recommendations
-                            ) 
-                        }
-                    }
-            }
-        }
-    }
-    
-    /**
-     * Get contextual recommendations based on time of day.
-     */
-    fun loadContextualRecommendations() {
-        viewModelScope.launch {
-            currentProfile?.let { profile ->
-                val currentHour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
-                val context = when (currentHour) {
-                    in 6..11 -> ViewingContext.MORNING
-                    in 12..17 -> ViewingContext.AFTERNOON
-                    in 18..22 -> ViewingContext.EVENING
-                    else -> ViewingContext.LATE_NIGHT
-                }
-                
-                recommendationRepository.getContextualRecommendations(profile.id, context)
-                    .catch { e ->
-                        _uiState.update { it.copy(error = e.message) }
-                    }
-                    .collect { contextualRecs ->
-                        _uiState.update { 
-                            it.copy(
-                                contextualRecommendations = contextualRecs,
-                                viewingContext = context
-                            ) 
-                        }
-                    }
+                println("Personalized Movie Trending error: ${e.message}")
             }
         }
     }
@@ -521,9 +453,7 @@ class HomeViewModel @Inject constructor(
      */
     fun onContentSelected(content: VideoContent) {
         trackContentInteraction(content, InteractionType.VIEW)
-        getBecauseYouWatched(content)
     }
-    
     
     /**
      * Clear error message.
@@ -534,34 +464,30 @@ class HomeViewModel @Inject constructor(
 }
 
 /**
- * UI state for home screen.
+ * UI state for movies screen.
  */
-data class HomeUiState(
+data class MoviesUiState(
     val isLoading: Boolean = false,
     val featuredContent: VideoContent? = null,
     
     // Enhanced content from backend
-    val enhancedContent: com.offordflix.data.dto.HomeContentResponse? = null,
+    val enhancedContent: com.offordflix.data.dto.MoviesContentResponse? = null,
     
     // Legacy individual content lists (for fallback)
-    val trendingContent: List<VideoContent> = emptyList(),
+    val trendingMovies: List<VideoContent> = emptyList(),
     val popularMovies: List<VideoContent> = emptyList(),
-    val popularTvShows: List<VideoContent> = emptyList(),
     val topRatedMovies: List<VideoContent> = emptyList(),
-    val topRatedTvShows: List<VideoContent> = emptyList(),
-    val watchlist: List<VideoContent> = emptyList(),
-    val continueWatching: List<VideoContent> = emptyList(),
+    val upcomingMovies: List<VideoContent> = emptyList(),
+    val nowPlayingMovies: List<VideoContent> = emptyList(),
+    val actionMovies: List<VideoContent> = emptyList(),
+    val comedyMovies: List<VideoContent> = emptyList(),
+    val dramaMovies: List<VideoContent> = emptyList(),
+    val watchlistMovies: List<VideoContent> = emptyList(),
     val searchResults: List<VideoContent> = emptyList(),
     
-    // ML-powered recommendations
-    val recommendedForYou: List<VideoContent> = emptyList(),
-    val personalizedTrending: List<VideoContent> = emptyList(),
-    val favoriteGenreRecommendations: List<VideoContent> = emptyList(),
-    val favoriteGenre: String? = null,
-    val becauseYouWatchedContent: VideoContent? = null,
-    val becauseYouWatchedRecommendations: List<VideoContent> = emptyList(),
-    val contextualRecommendations: List<VideoContent> = emptyList(),
-    val viewingContext: ViewingContext? = null,
+    // ML-powered movie recommendations
+    val recommendedMovies: List<VideoContent> = emptyList(),
+    val personalizedTrendingMovies: List<VideoContent> = emptyList(),
     
     val error: String? = null
 )

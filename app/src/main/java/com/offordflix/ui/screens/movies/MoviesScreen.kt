@@ -1,6 +1,4 @@
-package com.offordflix.ui.screens.home
-
-// Main HomeScreen is now NetflixStyleHomeScreen
+package com.offordflix.ui.screens.movies
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
@@ -9,15 +7,13 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.tv.foundation.lazy.list.TvLazyRow
-import androidx.tv.foundation.lazy.list.itemsIndexed as tvItemsIndexed
-import androidx.tv.foundation.lazy.list.rememberTvLazyListState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
@@ -36,30 +32,35 @@ import android.util.Log
 import kotlinx.coroutines.delay
 
 /**
- * Netflix-style home screen with fixed hero banner and animated content rows.
+ * Netflix-style movies screen with hero banner and movie content rows.
+ * Matches the exact structure and behavior of the home screen.
  */
 @Composable
-fun HomeScreen(
+fun MoviesScreen(
     onNavigateToPlayer: (VideoContent) -> Unit,
     onNavigateToDetails: (VideoContent) -> Unit = {},
     profileId: String? = null,
-    viewModel: HomeViewModel = hiltViewModel()
+    viewModel: MoviesViewModel = hiltViewModel(),
+    externalFocusRequester: FocusRequester? = null,
+    onExpandDrawer: (() -> Unit)? = null
 ) {
-    NetflixStyleHomeScreen(
+    NetflixStyleMoviesScreen(
         onNavigateToPlayer = onNavigateToPlayer,
         onNavigateToDetails = onNavigateToDetails,
         profileId = profileId,
-        viewModel = viewModel
+        viewModel = viewModel,
+        externalFocusRequester = externalFocusRequester,
+        onExpandDrawer = onExpandDrawer
     )
 }
 
 @Composable
-fun NetflixStyleHomeScreen(
+fun NetflixStyleMoviesScreen(
     onNavigateToPlayer: (VideoContent) -> Unit,
     onNavigateToDetails: (VideoContent) -> Unit = {},
     profileId: String? = null,
     backStackEntry: androidx.navigation.NavBackStackEntry? = null,
-    viewModel: HomeViewModel = if (backStackEntry != null) {
+    viewModel: MoviesViewModel = if (backStackEntry != null) {
         hiltViewModel(backStackEntry)
     } else {
         hiltViewModel()
@@ -104,20 +105,22 @@ fun NetflixStyleHomeScreen(
         // Use enhanced content if available, otherwise fallback to legacy content
         val enhancedContent = uiState.enhancedContent
         if (enhancedContent != null) {
-            Log.d("NetflixHome", "Using enhanced content with ${enhancedContent.sections.size} sections")
             // Convert enhanced content sections to content rows
             enhancedContent.sections.map { section ->
                 section.title to section.data.map { it.toVideoContent() }
             }
         } else {
-            Log.d("NetflixHome", "Using legacy content fallback")
             // Legacy content rows for fallback
             listOfNotNull(
-                if (uiState.trendingContent.isNotEmpty()) "Trending Now" to uiState.trendingContent else null,
+                if (uiState.trendingMovies.isNotEmpty()) "Trending Movies" to uiState.trendingMovies else null,
                 if (uiState.popularMovies.isNotEmpty()) "Popular Movies" to uiState.popularMovies else null,
-                if (uiState.popularTvShows.isNotEmpty()) "Popular TV Shows" to uiState.popularTvShows else null,
                 if (uiState.topRatedMovies.isNotEmpty()) "Top Rated Movies" to uiState.topRatedMovies else null,
-                if (uiState.topRatedTvShows.isNotEmpty()) "Top Rated TV Shows" to uiState.topRatedTvShows else null
+                if (uiState.nowPlayingMovies.isNotEmpty()) "Now Playing" to uiState.nowPlayingMovies else null,
+                if (uiState.upcomingMovies.isNotEmpty()) "Coming Soon" to uiState.upcomingMovies else null,
+                if (uiState.actionMovies.isNotEmpty()) "Action Movies" to uiState.actionMovies else null,
+                if (uiState.comedyMovies.isNotEmpty()) "Comedy Movies" to uiState.comedyMovies else null,
+                if (uiState.dramaMovies.isNotEmpty()) "Drama Movies" to uiState.dramaMovies else null,
+                if (uiState.watchlistMovies.isNotEmpty()) "My Movie List" to uiState.watchlistMovies else null
             )
         }
     }
@@ -144,9 +147,8 @@ fun NetflixStyleHomeScreen(
             } else {
                 // Fallback to featured content
                 uiState.featuredContent 
-                    ?: uiState.trendingContent.firstOrNull()
+                    ?: uiState.trendingMovies.firstOrNull()
                     ?: uiState.popularMovies.firstOrNull()
-                    ?: uiState.popularTvShows.firstOrNull()
             }
         }
         
@@ -173,7 +175,7 @@ fun NetflixStyleHomeScreen(
                         viewModel.onContentSelected(targetContent)
                     },
                     onAddToWatchlist = { viewModel.addToWatchlist(targetContent) },
-                    isInWatchlist = uiState.watchlist.any { it.id == targetContent.id },
+                    isInWatchlist = uiState.watchlistMovies.any { it.id == targetContent.id },
                     modifier = Modifier.fillMaxSize()
                 )
             }
@@ -189,9 +191,9 @@ fun NetflixStyleHomeScreen(
                     delay(200) // Increased delay to ensure UI is fully ready
                     try {
                         focusRequester.requestFocus()
-                        Log.d("HomeScreen", "Initial focus requested for content rows (${contentRows.size} rows available)")
+                        Log.d("MoviesScreen", "Initial focus requested for content rows (${contentRows.size} rows available)")
                     } catch (e: Exception) {
-                        Log.e("HomeScreen", "Failed to request initial focus", e)
+                        Log.e("MoviesScreen", "Failed to request initial focus", e)
                     }
                 }
             }
@@ -199,13 +201,13 @@ fun NetflixStyleHomeScreen(
             // Listen for external focus requests and ensure immediate focus
             LaunchedEffect(externalFocusRequester) {
                 externalFocusRequester?.let {
-                    Log.d("HomeScreen", "External focus requester provided, requesting focus immediately")
+                    Log.d("MoviesScreen", "External focus requester provided, requesting focus immediately")
                     delay(50) // Small delay to ensure the requester is ready
                     try {
                         it.requestFocus()
-                        Log.d("HomeScreen", "External focus requested successfully")
+                        Log.d("MoviesScreen", "External focus requested successfully")
                     } catch (e: Exception) {
-                        Log.e("HomeScreen", "Failed to request external focus", e)
+                        Log.e("MoviesScreen", "Failed to request external focus", e)
                     }
                 }
             }
@@ -229,16 +231,16 @@ fun NetflixStyleHomeScreen(
                     .onPreviewKeyEvent { keyEvent ->
                         // Handle D-pad navigation manually with improved logging
                         if (keyEvent.type == KeyEventType.KeyDown) {
-                            Log.d("HomeScreen", "Key event: ${keyEvent.key}, currentRow=$currentRowIndex, currentItem=$currentItemIndex")
+                            Log.d("MoviesScreen", "Key event: ${keyEvent.key}, currentRow=$currentRowIndex, currentItem=$currentItemIndex")
                             when (keyEvent.key) {
                                 Key.DirectionUp -> {
                                     if (currentRowIndex > 0) {
                                         currentRowIndex--
                                         currentItemIndex = 0 // Reset to first item in new row
-                                        Log.d("HomeScreen", "Moved up to row $currentRowIndex")
+                                        Log.d("MoviesScreen", "Moved up to row $currentRowIndex")
                                         true
                                     } else {
-                                        Log.d("HomeScreen", "Already at top row")
+                                        Log.d("MoviesScreen", "Already at top row")
                                         false
                                     }
                                 }
@@ -246,20 +248,20 @@ fun NetflixStyleHomeScreen(
                                     if (currentRowIndex < contentRows.size - 1) {
                                         currentRowIndex++
                                         currentItemIndex = 0 // Reset to first item in new row
-                                        Log.d("HomeScreen", "Moved down to row $currentRowIndex")
+                                        Log.d("MoviesScreen", "Moved down to row $currentRowIndex")
                                         true
                                     } else {
-                                        Log.d("HomeScreen", "Already at bottom row")
+                                        Log.d("MoviesScreen", "Already at bottom row")
                                         false
                                     }
                                 }
                                 Key.DirectionLeft -> {
                                     if (currentItemIndex > 0) {
                                         currentItemIndex--
-                                        Log.d("HomeScreen", "Moved left to item $currentItemIndex")
+                                        Log.d("MoviesScreen", "Moved left to item $currentItemIndex")
                                         true
                                     } else {
-                                        Log.d("HomeScreen", "At leftmost item, expanding drawer")
+                                        Log.d("MoviesScreen", "At leftmost item, expanding drawer")
                                         onExpandDrawer?.invoke()
                                         true
                                     }
@@ -269,10 +271,10 @@ fun NetflixStyleHomeScreen(
                                     val maxItems = currentRow?.second?.take(10)?.size ?: 0
                                     if (currentItemIndex < maxItems - 1) {
                                         currentItemIndex++
-                                        Log.d("HomeScreen", "Moved right to item $currentItemIndex")
+                                        Log.d("MoviesScreen", "Moved right to item $currentItemIndex")
                                         true
                                     } else {
-                                        Log.d("HomeScreen", "Already at rightmost item (max: $maxItems)")
+                                        Log.d("MoviesScreen", "Already at rightmost item (max: $maxItems)")
                                         false
                                     }
                                 }
@@ -282,7 +284,7 @@ fun NetflixStyleHomeScreen(
                                     val currentRowContent = currentRow?.second?.take(10)
                                     if (currentRowContent != null && currentItemIndex < currentRowContent.size) {
                                         val clickedContent = currentRowContent[currentItemIndex]
-                                        Log.d("HomeScreen", "Selected content: ${clickedContent.title}")
+                                        Log.d("MoviesScreen", "Selected content: ${clickedContent.title}")
                                         // Open inline details overlay
                                         viewModel.onContentSelected(clickedContent)
                                         selectedContent = clickedContent
@@ -291,7 +293,7 @@ fun NetflixStyleHomeScreen(
                                     true
                                 }
                                 else -> {
-                                    Log.d("HomeScreen", "Unhandled key: ${keyEvent.key}")
+                                    Log.d("MoviesScreen", "Unhandled key: ${keyEvent.key}")
                                     false
                                 }
                             }
@@ -317,7 +319,7 @@ fun NetflixStyleHomeScreen(
                 ) { targetIndex ->
                     if (targetIndex < contentRows.size) {
                         val (title, content) = contentRows[targetIndex]
-                        Log.d("NetflixHome", "Rendering ContentRowOverlay: title='$title', rowIndex=$targetIndex, focusedItem=$currentItemIndex, contentSize=${content.size}")
+                        Log.d("MoviesScreen", "Rendering ContentRowOverlay: title='$title', rowIndex=$targetIndex, focusedItem=$currentItemIndex, contentSize=${content.size}")
                         ContentRowOverlay(
                             title = title,
                             content = content,
@@ -326,11 +328,11 @@ fun NetflixStyleHomeScreen(
                             focusedItemIndex = currentItemIndex,
                             onContentClick = { content ->
                                 // Open inline details overlay
-                                Log.d("NetflixHome", "onContentClick handler called with title='${content.title}', id=${content.id}")
+                                Log.d("MoviesScreen", "onContentClick handler called with title='${content.title}', id=${content.id}")
                                 viewModel.onContentSelected(content)
                                 selectedContent = content
                                 isDetailsVisible = true
-                                Log.d("NetflixHome", "selectedContent updated to title='${selectedContent?.title}', id=${selectedContent?.id}")
+                                Log.d("MoviesScreen", "selectedContent updated to title='${selectedContent?.title}', id=${selectedContent?.id}")
                             },
                             onPlayClick = { content ->
                                 viewModel.trackContentInteraction(content, InteractionType.WATCH)
@@ -338,7 +340,7 @@ fun NetflixStyleHomeScreen(
                             },
                             onAddToWatchlist = viewModel::addToWatchlist,
                             onRemoveFromWatchlist = viewModel::removeFromWatchlist,
-                            watchlist = uiState.watchlist
+                            watchlist = uiState.watchlistMovies
                         )
                     }
                 }
@@ -348,16 +350,16 @@ fun NetflixStyleHomeScreen(
         // In-place Details Overlay - covers content rows area while keeping hero visible
         val details = selectedContent
         if (isDetailsVisible && details != null) {
-            Log.d("NetflixHome", "Rendering ContentDetailsOverlay for title='${details.title}', id=${details.id}")
+            Log.d("MoviesScreen", "Rendering ContentDetailsOverlay for title='${details.title}', id=${details.id}")
             ContentDetailsOverlay(
                 content = details,
-                isInWatchlist = uiState.watchlist.any { it.id == details.id },
+                isInWatchlist = uiState.watchlistMovies.any { it.id == details.id },
                 onPlay = {
                     viewModel.trackContentInteraction(details, InteractionType.WATCH)
                     onNavigateToPlayer(details)
                 },
                 onToggleWatchlist = {
-                    if (uiState.watchlist.any { it.id == details.id }) {
+                    if (uiState.watchlistMovies.any { it.id == details.id }) {
                         viewModel.removeFromWatchlist(details)
                     } else {
                         viewModel.addToWatchlist(details)
@@ -384,7 +386,7 @@ fun NetflixStyleHomeScreen(
                         color = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        text = "Loading content...",
+                        text = "Loading movies...",
                         style = MaterialTheme.typography.bodyLarge,
                         color = Color.White
                     )
@@ -403,7 +405,7 @@ fun NetflixStyleHomeScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Text(
-                        text = "⚠️ Content Loading Failed",
+                        text = "⚠️ Movies Loading Failed",
                         style = MaterialTheme.typography.headlineMedium,
                         color = MaterialTheme.colorScheme.error
                     )
@@ -428,6 +430,7 @@ fun NetflixStyleHomeScreen(
 
 /**
  * Content row overlay with smaller cards optimized for TV layout.
+ * Identical to home screen implementation but for movies only.
  */
 @Composable
 private fun ContentRowOverlay(
@@ -455,10 +458,10 @@ private fun ContentRowOverlay(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
+        Text(
                 text = title,
                 fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.Bold,
                 color = Color.White
             )
             
@@ -520,6 +523,7 @@ private fun ContentRowOverlay(
 /**
  * In-place content details overlay shown over the bottom area.
  * Keeps the hero backdrop visible while hiding the content rows.
+ * Identical to home screen implementation.
  */
 @Composable
 private fun ContentDetailsOverlay(
@@ -602,7 +606,7 @@ private fun ContentDetailsOverlay(
                     Text("Back")
                 }
             }
-        }
+            }
         }
     }
 }

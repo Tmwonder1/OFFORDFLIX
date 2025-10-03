@@ -1,10 +1,13 @@
 package com.offordflix.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -19,7 +22,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.graphicsLayer
 import coil.compose.AsyncImage
+import coil.compose.AsyncImagePainter
+import coil.compose.rememberAsyncImagePainter
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.animation.core.*
 import com.offordflix.domain.model.VideoContent
 import com.offordflix.domain.model.ContentType
 
@@ -47,12 +55,11 @@ fun HeroBanner(
             .fillMaxWidth()
             .height(600.dp)
     ) {
-        // Backdrop image
-        AsyncImage(
-            model = content.backdropUrl,
+        // Enhanced backdrop image with progressive loading
+        EnhancedBackdropImage(
+            model = content.backdropUrl ?: content.posterUrl,
             contentDescription = content.title,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop
+            modifier = Modifier.fillMaxSize()
         )
         
         // Left scrim overlay for text readability
@@ -75,13 +82,12 @@ fun HeroBanner(
             var logoLoadError by remember { mutableStateOf(false) }
             
             if (content.logoUrl != null && !logoLoadError) {
-                AsyncImage(
+                EnhancedLogoImage(
                     model = content.logoUrl,
                     contentDescription = content.title,
                     modifier = Modifier
                         .height(80.dp)
                         .widthIn(max = 400.dp),
-                    contentScale = ContentScale.Fit,
                     onError = {
                         logoLoadError = true
                     }
@@ -148,33 +154,64 @@ fun HeroBanner(
                 overflow = TextOverflow.Ellipsis
             )
             
-            // Action buttons
+            // Enhanced action buttons with focus animations
             Row(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.padding(top = 16.dp)
             ) {
-                // Play button (primary focus)
-                HeroBannerButton(
-                    text = "▶ Play",
+                // Play button (simplified for performance)
+                Button(
                     onClick = onPlay,
-                    isPrimary = true,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    ),
                     modifier = Modifier.focusable()
-                )
+                ) {
+                    Text(
+                        text = "▶ Play",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
                 
-                // More info button
-                HeroBannerButton(
-                    text = "ℹ More Info",
+                // More info button (simplified for performance)
+                Button(
                     onClick = onMoreInfo,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.Black.copy(alpha = 0.6f)
+                    ),
                     modifier = Modifier.focusable()
-                )
+                ) {
+                    Text(
+                        text = "ℹ More Info",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
                 
-                // Watchlist button
-                HeroBannerButton(
-                    text = if (isInWatchlist) "✓ In List" else "+ My List",
+                // Watchlist button (simplified for performance)
+                Button(
                     onClick = onAddToWatchlist,
-                    isActive = isInWatchlist,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isInWatchlist) 
+                            MaterialTheme.colorScheme.secondary 
+                        else 
+                            Color.Black.copy(alpha = 0.6f)
+                    ),
                     modifier = Modifier.focusable()
-                )
+                ) {
+                    Text(
+                        text = if (isInWatchlist) "✓ In List" else "+ My List",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
             }
         }
     }
@@ -219,6 +256,212 @@ private fun HeroBannerButton(
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+        )
+    }
+}
+
+/**
+ * Enhanced backdrop image with shimmer loading and fade-in animation.
+ */
+@Composable
+private fun EnhancedBackdropImage(
+    model: Any?,
+    contentDescription: String?,
+    modifier: Modifier = Modifier
+) {
+    val painter = rememberAsyncImagePainter(model = model)
+    val painterState = painter.state
+    
+    // Netflix-style shimmer animation for backdrop loading
+    val netflixShimmerColors = listOf(
+        Color(0xFF0A0A0A), // Darker Netflix base for backdrop
+        Color(0xFF141414), // Netflix standard base
+        Color(0xFF1F1F1F), // Mid tone
+        Color(0xFF2A2A2A), // Highlight
+        Color(0xFF1F1F1F), // Mid tone
+        Color(0xFF141414), // Netflix standard base
+        Color(0xFF0A0A0A)  // Darker base
+    )
+    
+    val transition = rememberInfiniteTransition(label = "netflix_backdrop_shimmer")
+    val shimmerOffset by transition.animateFloat(
+        initialValue = -600f,
+        targetValue = 1200f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(
+                durationMillis = 2000, // Slower for backdrop
+                easing = CubicBezierEasing(0.4f, 0.0f, 0.2f, 1.0f) // Netflix easing
+            ),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "netflix_backdrop_shimmer_offset"
+    )
+    
+    // Fade-in animation for loaded image
+    val alpha by animateFloatAsState(
+        targetValue = if (painterState is AsyncImagePainter.State.Success) 1f else 0f,
+        animationSpec = tween(
+            durationMillis = 500,
+            easing = EaseInOutCubic
+        ),
+        label = "backdrop_fade_in"
+    )
+    
+    val shimmerBrush = Brush.linearGradient(
+        colors = netflixShimmerColors,
+        start = Offset(shimmerOffset - 600f, shimmerOffset - 600f),
+        end = Offset(shimmerOffset + 600f, shimmerOffset + 600f)
+    )
+    
+    Box(modifier = modifier) {
+        // Show shimmer while loading
+        if (painterState is AsyncImagePainter.State.Loading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(shimmerBrush)
+            )
+        }
+        
+        // Show the actual backdrop with fade-in using the same painter we observe
+        Image(
+            painter = painter,
+            contentDescription = contentDescription,
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { this.alpha = alpha },
+            contentScale = ContentScale.Crop
+        )
+        
+        // Enhanced error state with fallback gradient
+        if (painterState is AsyncImagePainter.State.Error) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color(0xFF1a1a1a),
+                                Color(0xFF0d1117),
+                                Color.Black
+                            )
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Warning,
+                        contentDescription = "Backdrop unavailable",
+                        modifier = Modifier.size(48.dp),
+                        tint = Color.White.copy(alpha = 0.3f)
+                    )
+                    Text(
+                        text = "Backdrop Image Unavailable",
+                        fontSize = 14.sp,
+                        color = Color.White.copy(alpha = 0.5f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Enhanced logo image with shimmer loading and smooth transitions.
+ */
+@Composable
+private fun EnhancedLogoImage(
+    model: Any?,
+    contentDescription: String?,
+    modifier: Modifier = Modifier,
+    onError: () -> Unit = {}
+) {
+    val painter = rememberAsyncImagePainter(
+        model = model
+    )
+    val painterState = painter.state
+    LaunchedEffect(painterState) {
+        if (painterState is AsyncImagePainter.State.Error) {
+            onError()
+        }
+    }
+    
+    // Shimmer animation for loading state
+    val shimmerColors = listOf(
+        Color.White.copy(alpha = 0.1f),
+        Color.White.copy(alpha = 0.3f),
+        Color.White.copy(alpha = 0.1f)
+    )
+    
+    val transition = rememberInfiniteTransition(label = "logo_shimmer")
+    val shimmerOffset by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 800f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(
+                durationMillis = 1000,
+                easing = LinearEasing
+            ),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "logo_shimmer_offset"
+    )
+    
+    // Scale animation for loaded logo
+    val scale by animateFloatAsState(
+        targetValue = if (painterState is AsyncImagePainter.State.Success) 1f else 0.8f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessLow
+        ),
+        label = "logo_scale"
+    )
+    
+    // Alpha animation for loaded logo
+    val alpha by animateFloatAsState(
+        targetValue = if (painterState is AsyncImagePainter.State.Success) 1f else 0f,
+        animationSpec = tween(
+            durationMillis = 400,
+            easing = EaseInOutCubic
+        ),
+        label = "logo_alpha"
+    )
+    
+    val shimmerBrush = Brush.linearGradient(
+        colors = shimmerColors,
+        start = Offset(shimmerOffset - 200f, shimmerOffset - 200f),
+        end = Offset(shimmerOffset, shimmerOffset)
+    )
+    
+    Box(modifier = modifier) {
+        // Show shimmer while loading
+        if (painterState is AsyncImagePainter.State.Loading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        shimmerBrush,
+                        RoundedCornerShape(8.dp)
+                    )
+            )
+        }
+        
+        // Show the actual logo with animations using the same painter we observe
+        Image(
+            painter = painter,
+            contentDescription = contentDescription,
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer {
+                    this.alpha = alpha
+                    scaleX = scale
+                    scaleY = scale
+                },
+            contentScale = ContentScale.Fit
         )
     }
 }
