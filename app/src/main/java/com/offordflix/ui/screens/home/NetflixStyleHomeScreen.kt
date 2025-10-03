@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.animation.*
@@ -34,6 +35,7 @@ import com.offordflix.ui.components.HeroBanner
 import com.offordflix.data.ml.InteractionType
 import android.util.Log
 import kotlinx.coroutines.delay
+import com.offordflix.ui.theme.SynopsisFontFamily
 
 /**
  * Netflix-style home screen with fixed hero banner and animated content rows.
@@ -580,6 +582,7 @@ private fun ContentDetailsOverlay(
                     Text(
                         text = content.overview!!,
                         color = Color.White.copy(alpha = 0.9f),
+                        fontFamily = SynopsisFontFamily,
                         fontSize = 16.sp,
                         lineHeight = 20.sp,
                         maxLines = 4

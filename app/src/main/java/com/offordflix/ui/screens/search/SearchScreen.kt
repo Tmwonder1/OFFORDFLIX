@@ -30,6 +30,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -42,6 +43,7 @@ import com.offordflix.domain.model.VideoContent
 import com.offordflix.ui.components.ContentCard
 import com.offordflix.ui.components.FullWidthLeftScrimOverlay
 import com.offordflix.ui.components.ScrimIntensity
+import com.offordflix.ui.theme.SynopsisFontFamily
 
 /**
  * Search screen with virtual keyboard and content grid.
@@ -699,6 +701,7 @@ private fun ContentDetailsOverlay(
                     Text(
                         text = content.overview!!,
                         color = Color.White.copy(alpha = 0.9f),
+                        fontFamily = SynopsisFontFamily,
                         fontSize = 18.sp,
                         lineHeight = 24.sp,
                         maxLines = 4

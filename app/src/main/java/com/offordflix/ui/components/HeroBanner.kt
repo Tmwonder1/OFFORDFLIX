@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -30,6 +31,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.animation.core.*
 import com.offordflix.domain.model.VideoContent
 import com.offordflix.domain.model.ContentType
+import com.offordflix.ui.theme.SynopsisFontFamily
 
 /**
  * Netflix-style hero banner component.
@@ -147,7 +149,8 @@ fun HeroBanner(
             // Overview
             Text(
                 text = content.overview ?: "No description available.",
-                color = Color.White.copy(alpha = 0.9f),
+                color = Color.White,
+                fontFamily = SynopsisFontFamily,
                 fontSize = 18.sp,
                 lineHeight = 24.sp,
                 maxLines = 3,

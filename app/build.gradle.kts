@@ -101,6 +101,12 @@ dependencies {
     implementation("io.coil-kt:coil-compose:2.5.0")
     implementation("io.coil-kt:coil-svg:2.5.0")
     
+    // Google Fonts for Compose
+    implementation("androidx.compose.ui:ui-text-google-fonts")
+
+    // Google Play Services Basement (provides downloadable fonts certs resource)
+    implementation("com.google.android.gms:play-services-basement:18.2.0")
+    
     // Local Storage with DataStore Proto
     implementation("androidx.datastore:datastore:1.0.0")
     implementation("androidx.datastore:datastore-core:1.0.0")
