@@ -72,6 +72,9 @@ fun OffordflixNavigation(
     val currentRoute = currentBackStackEntry?.destination?.route ?: Screen.Splash.route
     val drawerState = rememberNavigationDrawerState()
     
+    // Track overlay visibility state across all screens
+    var isOverlayVisible by remember { mutableStateOf(false) }
+    
     // Determine if drawer should be shown (not on splash, profile selection, or player screens)
     val showDrawer = when {
         currentRoute.startsWith(Screen.Splash.route) -> false
@@ -88,6 +91,7 @@ fun OffordflixNavigation(
             ModalNavigationDrawer(
                 drawerState = drawerState,
                 selectedRoute = getSelectedRoute(currentRoute),
+                hideDrawer = isOverlayVisible, // Hide drawer when overlay is visible
                 onNavigateToRoute = { route ->
                     Log.d("OffordflixNavigation", "Navigating to route: $route")
                     when (route) {
@@ -144,12 +148,13 @@ fun OffordflixNavigation(
                 NavigationContent(
                     navController = navController, 
                     isDrawerExpanded = isDrawerExpanded,
-                    onExpandDrawer = onExpandDrawer
+                    onExpandDrawer = onExpandDrawer,
+                    onOverlayVisibilityChanged = { isVisible -> isOverlayVisible = isVisible }
                 )
             }
         }
     } else {
-        NavigationContent(navController = navController, isDrawerExpanded = false, onExpandDrawer = {})
+        NavigationContent(navController = navController, isDrawerExpanded = false, onExpandDrawer = {}, onOverlayVisibilityChanged = {})
     }
 }
 
@@ -160,7 +165,8 @@ fun OffordflixNavigation(
 private fun NavigationContent(
     navController: NavHostController, 
     isDrawerExpanded: Boolean = false,
-    onExpandDrawer: () -> Unit = {}
+    onExpandDrawer: () -> Unit = {},
+    onOverlayVisibilityChanged: (Boolean) -> Unit = {}
 ) {
     NavHost(
         navController = navController,
@@ -198,7 +204,8 @@ private fun NavigationContent(
                 onNavigateToDetails = { content: com.offordflix.domain.model.VideoContent ->
                     // TODO: Navigate to content details screen
                 },
-                onExpandDrawer = onExpandDrawer
+                onExpandDrawer = onExpandDrawer,
+                onOverlayVisibilityChanged = onOverlayVisibilityChanged
             )
         }
         
@@ -214,7 +221,8 @@ private fun NavigationContent(
                     navController.popBackStack()
                 },
                 isDrawerExpanded = isDrawerExpanded,
-                onExpandDrawer = onExpandDrawer
+                onExpandDrawer = onExpandDrawer,
+                onOverlayVisibilityChanged = onOverlayVisibilityChanged
             )
         }
         
@@ -228,7 +236,8 @@ private fun NavigationContent(
                 onNavigateToDetails = { content: com.offordflix.domain.model.VideoContent ->
                     // TODO: Navigate to content details screen
                 },
-                onExpandDrawer = onExpandDrawer
+                onExpandDrawer = onExpandDrawer,
+                onOverlayVisibilityChanged = onOverlayVisibilityChanged
             )
         }
         
@@ -242,7 +251,8 @@ private fun NavigationContent(
                 onNavigateToDetails = { content: com.offordflix.domain.model.VideoContent ->
                     // TODO: Navigate to content details screen
                 },
-                onExpandDrawer = onExpandDrawer
+                onExpandDrawer = onExpandDrawer,
+                onOverlayVisibilityChanged = onOverlayVisibilityChanged
             )
         }
         
@@ -319,7 +329,8 @@ private fun HomeScreenWithDrawerState(
     backStackEntry: androidx.navigation.NavBackStackEntry,
     onNavigateToPlayer: (com.offordflix.domain.model.VideoContent) -> Unit,
     onNavigateToDetails: (com.offordflix.domain.model.VideoContent) -> Unit,
-    onExpandDrawer: (() -> Unit)? = null
+    onExpandDrawer: (() -> Unit)? = null,
+    onOverlayVisibilityChanged: (Boolean) -> Unit = {}
 ) {
     // Pass drawer state to HomeScreen so it can manage its own focus
     HomeScreenWithFocusManagement(
@@ -328,7 +339,8 @@ private fun HomeScreenWithDrawerState(
         backStackEntry = backStackEntry,
         onNavigateToPlayer = onNavigateToPlayer,
         onNavigateToDetails = onNavigateToDetails,
-        onExpandDrawer = onExpandDrawer
+        onExpandDrawer = onExpandDrawer,
+        onOverlayVisibilityChanged = onOverlayVisibilityChanged
     )
 }
 
@@ -342,7 +354,8 @@ private fun HomeScreenWithFocusManagement(
     backStackEntry: androidx.navigation.NavBackStackEntry,
     onNavigateToPlayer: (com.offordflix.domain.model.VideoContent) -> Unit,
     onNavigateToDetails: (com.offordflix.domain.model.VideoContent) -> Unit,
-    onExpandDrawer: (() -> Unit)? = null
+    onExpandDrawer: (() -> Unit)? = null,
+    onOverlayVisibilityChanged: (Boolean) -> Unit = {}
 ) {
     // Create a focus requester for the content rows
     val contentFocusRequester = remember { FocusRequester() }
@@ -382,7 +395,8 @@ private fun HomeScreenWithFocusManagement(
         externalFocusRequester = contentFocusRequester,
         onNavigateToPlayer = onNavigateToPlayer,
         onNavigateToDetails = onNavigateToDetails,
-        onExpandDrawer = onExpandDrawer
+        onExpandDrawer = onExpandDrawer,
+        onOverlayVisibilityChanged = onOverlayVisibilityChanged
     )
 }
 
@@ -395,7 +409,8 @@ private fun MoviesScreenWithDrawerState(
     backStackEntry: androidx.navigation.NavBackStackEntry,
     onNavigateToPlayer: (com.offordflix.domain.model.VideoContent) -> Unit,
     onNavigateToDetails: (com.offordflix.domain.model.VideoContent) -> Unit,
-    onExpandDrawer: (() -> Unit)? = null
+    onExpandDrawer: (() -> Unit)? = null,
+    onOverlayVisibilityChanged: (Boolean) -> Unit = {}
 ) {
     // Create a focus requester for the content rows
     val contentFocusRequester = remember { FocusRequester() }
@@ -435,7 +450,8 @@ private fun MoviesScreenWithDrawerState(
         externalFocusRequester = contentFocusRequester,
         onNavigateToPlayer = onNavigateToPlayer,
         onNavigateToDetails = onNavigateToDetails,
-        onExpandDrawer = onExpandDrawer
+        onExpandDrawer = onExpandDrawer,
+        onOverlayVisibilityChanged = onOverlayVisibilityChanged
     )
 }
 
@@ -448,7 +464,8 @@ private fun TVShowsScreenWithDrawerState(
     backStackEntry: androidx.navigation.NavBackStackEntry,
     onNavigateToPlayer: (com.offordflix.domain.model.VideoContent) -> Unit,
     onNavigateToDetails: (com.offordflix.domain.model.VideoContent) -> Unit,
-    onExpandDrawer: (() -> Unit)? = null
+    onExpandDrawer: (() -> Unit)? = null,
+    onOverlayVisibilityChanged: (Boolean) -> Unit = {}
 ) {
     // Create a focus requester for the content rows
     val contentFocusRequester = remember { FocusRequester() }
@@ -488,7 +505,8 @@ private fun TVShowsScreenWithDrawerState(
         externalFocusRequester = contentFocusRequester,
         onNavigateToPlayer = onNavigateToPlayer,
         onNavigateToDetails = onNavigateToDetails,
-        onExpandDrawer = onExpandDrawer
+        onExpandDrawer = onExpandDrawer,
+        onOverlayVisibilityChanged = onOverlayVisibilityChanged
     )
 }
 

@@ -51,27 +51,27 @@ export async function getXprime(media) {
                     break;
 
                 case 'primenet':
-                    doPrimenetStuff(media, files, subtitles, errors);
+                    await doPrimenetStuff(media, files, subtitles, errors);
                     break;
 
                 case 'primebox':
-                    doPrimeboxStuff(media, files, subtitles, errors);
+                    await doPrimeboxStuff(media, files, subtitles, errors);
                     break;
 
                 case 'kraken':
-                    doKrakenStuff(media, files, subtitles, errors);
+                    await doKrakenStuff(media, files, subtitles, errors);
                     break;
 
                 case 'harbour':
-                    doHarbourStuff(media, files, subtitles, errors);
+                    await doHarbourStuff(media, files, subtitles, errors);
                     break;
 
                 case 'volkswagen':
-                    doVolkswagenStuff(media, files, subtitles, errors);
+                    await doVolkswagenStuff(media, files, subtitles, errors);
                     break;
 
                 case 'fendi':
-                    doFendiStuff(media, files, subtitles, errors);
+                    await doFendiStuff(media, files, subtitles, errors);
                     break;
             }
         }
@@ -178,6 +178,16 @@ async function doPrimenetStuff(media, files, subtitles, errors) {
         data = await data.json();
     } catch (error) {
         console.log('XPrime JSON parsing failed:', error.message);
+        errors.push(
+            new ErrorObject(
+                'XPrime invalid JSON (Primenet)',
+                'Xprime',
+                502,
+                'Provider returned non-JSON. Skipping source.',
+                true,
+                true
+            )
+        );
         return;
     }
     if (data.url) {
@@ -224,7 +234,22 @@ async function doPrimeboxStuff(media, files, subtitles, errors) {
         return;
     }
 
-    data = await data.json();
+    try {
+        data = await data.json();
+    } catch (error) {
+        console.log('XPrime JSON parsing failed:', error.message);
+        errors.push(
+            new ErrorObject(
+                'XPrime invalid JSON (Primebox)',
+                'Xprime',
+                502,
+                'Provider returned non-JSON. Skipping source.',
+                true,
+                true
+            )
+        );
+        return;
+    }
     if (data.streams && data.available_qualities) {
         for (const quality of data.available_qualities) {
             if (data.streams[quality]) {

@@ -2,6 +2,7 @@ package com.offordflix.di
 
 import android.content.Context
 import androidx.media3.exoplayer.ExoPlayer
+import com.offordflix.data.api.OffordflixApi
 import com.offordflix.data.repository.VideoPlayerRepository
 import dagger.Module
 import dagger.Provides
@@ -25,8 +26,10 @@ object PlayerModule {
      */
     @Provides
     @Singleton
-    fun provideVideoPlayerRepository(): VideoPlayerRepository {
-        return VideoPlayerRepository()
+    fun provideVideoPlayerRepository(
+        offordflixApi: OffordflixApi
+    ): VideoPlayerRepository {
+        return VideoPlayerRepository(offordflixApi)
     }
     
     /**

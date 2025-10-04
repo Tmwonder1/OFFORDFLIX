@@ -44,6 +44,7 @@ import com.offordflix.ui.components.ContentCard
 import com.offordflix.ui.components.FullWidthLeftScrimOverlay
 import com.offordflix.ui.components.ScrimIntensity
 import com.offordflix.ui.theme.SynopsisFontFamily
+import com.offordflix.ui.utils.ContentMetadataUtils
 
 /**
  * Search screen with virtual keyboard and content grid.
@@ -61,13 +62,19 @@ fun SearchScreen(
     onNavigateBack: () -> Unit,
     viewModel: SearchViewModel = hiltViewModel(),
     isDrawerExpanded: Boolean = false,
-    onExpandDrawer: (() -> Unit)? = null
+    onExpandDrawer: (() -> Unit)? = null,
+    onOverlayVisibilityChanged: (Boolean) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     
     // Local UI state for details overlay
     var selectedContent by remember { mutableStateOf<VideoContent?>(null) }
     var isDetailsVisible by remember { mutableStateOf(false) }
+    
+    // Notify navigation about overlay visibility changes
+    LaunchedEffect(isDetailsVisible) {
+        onOverlayVisibilityChanged(isDetailsVisible)
+    }
     
     // Create a gradient background similar to the image
     val gradientBackground = Brush.verticalGradient(
@@ -696,10 +703,23 @@ private fun ContentDetailsOverlay(
                     )
                 }
                 
+                // All metadata in single continuous line with bullet separators
+                val metadata = ContentMetadataUtils.getFormattedMetadata(content)
+                if (metadata.isNotEmpty()) {
+                    Text(
+                        text = ContentMetadataUtils.joinMetadata(metadata),
+                        color = Color.White.copy(alpha = 0.8f),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 2,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                }
+                
                 // Overview
                 if (!content.overview.isNullOrBlank()) {
                     Text(
-                        text = content.overview!!,
+                        text = content.overview,
                         color = Color.White.copy(alpha = 0.9f),
                         fontFamily = SynopsisFontFamily,
                         fontSize = 18.sp,

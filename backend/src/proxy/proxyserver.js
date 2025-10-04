@@ -28,21 +28,31 @@ function extractOriginalUrl(proxyUrl) {
     try {
         const url = new URL(proxyUrl);
 
-        // right now only for hls1.vid1.site/proxy/ and hls3.vid1.site/proxy/ because they are the ones that has not been working...
-        if (
-            (url.hostname === 'hls1.vid1.site' ||
-                url.hostname === 'hls3.vid1.site') &&
-            url.pathname.startsWith('/proxy/')
-        ) {
-            const encodedUrl = url.pathname.replace('/proxy/', '');
-            return decodeURIComponent(encodedUrl);
+        // Generalize: many upstream proxies use either path-based or query param based embedding.
+        // 1) Path-based patterns like /proxy/<encodedTarget>
+        const pathParts = url.pathname.split('/').filter(Boolean);
+        const proxyIndex = pathParts.findIndex((p) => p.toLowerCase() === 'proxy');
+        if (proxyIndex !== -1 && pathParts[proxyIndex + 1]) {
+            const encoded = pathParts.slice(proxyIndex + 1).join('/');
+            try {
+                return decodeURIComponent(encoded);
+            } catch {
+                // fall through if malformed
+            }
         }
 
-        if (url.searchParams.has('url')) {
-            return decodeURIComponent(url.searchParams.get('url'));
+        // 2) Common query param keys that contain the upstream URL
+        for (const key of ['url', 'link', 'target', 'u']) {
+            if (url.searchParams.has(key)) {
+                try {
+                    return decodeURIComponent(url.searchParams.get(key));
+                } catch {
+                    return url.searchParams.get(key);
+                }
+            }
         }
 
-        return proxyUrl; // we will Return as-is if no proxy pattern found
+        return proxyUrl;
     } catch {
         return proxyUrl;
     }
@@ -99,19 +109,46 @@ export function createProxyRoutes(app) {
                         } else {
                             newLines.push(line);
                         }
+                    } else if (line.startsWith('#EXT-X-MAP:')) {
+                        // initialization segment for fMP4
+                        const mapMatch = line.match(/URI="([^"]+)"/);
+                        if (mapMatch && mapMatch[1]) {
+                            const mapUrl = new URL(mapMatch[1], targetUrl).href;
+                            const proxyUrl = `/ts-proxy?url=${encodeURIComponent(
+                                mapUrl
+                            )}&headers=${encodeURIComponent(JSON.stringify(headers))}`;
+                            newLines.push(line.replace(mapMatch[1], proxyUrl));
+                        } else {
+                            newLines.push(line);
+                        }
+                    } else if (line.startsWith('#EXT-X-I-FRAME-STREAM-INF:')) {
+                        // iframe playlists should go through m3u8-proxy
+                        const iframeMatch = line.match(/URI="([^"]+)"/);
+                        if (iframeMatch && iframeMatch[1]) {
+                            const iframeUrl = new URL(iframeMatch[1], targetUrl).href;
+                            const proxyUrl = `/m3u8-proxy?url=${encodeURIComponent(
+                                iframeUrl
+                            )}&headers=${encodeURIComponent(JSON.stringify(headers))}`;
+                            newLines.push(line.replace(iframeMatch[1], proxyUrl));
+                        } else {
+                            newLines.push(line);
+                        }
                     } else {
                         newLines.push(line);
                     }
                 } else if (line.trim()) {
-                    // Segment URLs
+                    // Variant playlist vs segment determination
+                    const trimmed = line.trim();
                     try {
-                        const segmentUrl = new URL(line, targetUrl).href;
-                        const proxyUrl = `/ts-proxy?url=${encodeURIComponent(
-                            segmentUrl
+                        const absoluteUrl = new URL(trimmed, targetUrl).href;
+                        const isPlaylist = /\.m3u8(\?|$)/i.test(absoluteUrl);
+                        const proxyPath = isPlaylist ? '/m3u8-proxy' : '/ts-proxy';
+                        const proxyUrl = `${proxyPath}?url=${encodeURIComponent(
+                            absoluteUrl
                         )}&headers=${encodeURIComponent(JSON.stringify(headers))}`;
                         newLines.push(proxyUrl);
                     } catch {
-                        newLines.push(line); // we will in case Keep original if URL parsing fails
+                        newLines.push(trimmed);
                     }
                 } else {
                     newLines.push(line); // Keep empty lines
@@ -150,11 +187,16 @@ export function createProxyRoutes(app) {
         try {
             console.log(`[TS Proxy] Fetching: ${targetUrl}`);
 
+            const upstreamHeaders = {
+                'User-Agent': DEFAULT_USER_AGENT,
+                ...headers
+            };
+            if (req.headers.range) {
+                upstreamHeaders.Range = req.headers.range;
+            }
+
             const response = await fetch(targetUrl, {
-                headers: {
-                    'User-Agent': DEFAULT_USER_AGENT,
-                    ...headers
-                }
+                headers: upstreamHeaders
             });
 
             if (!response.ok) {
@@ -163,8 +205,15 @@ export function createProxyRoutes(app) {
                 });
             }
 
-            // Set response headers for the segment file to treat as it as a segmentsssssss
-            res.setHeader('Content-Type', 'video/mp2t');
+            // Mirror upstream status and critical headers
+            res.status(response.status);
+            const upstreamContentType = response.headers.get('content-type') || 'application/octet-stream';
+            res.setHeader('Content-Type', upstreamContentType);
+            const passHeaders = ['content-length', 'content-range', 'accept-ranges'];
+            for (const h of passHeaders) {
+                const v = response.headers.get(h);
+                if (v) res.setHeader(h, v);
+            }
             res.setHeader('Access-Control-Allow-Origin', '*');
             res.setHeader('Access-Control-Allow-Headers', '*');
             res.setHeader('Access-Control-Allow-Methods', '*');
@@ -274,34 +323,29 @@ export function createProxyRoutes(app) {
 export function processApiResponse(apiResponse, serverUrl) {
     if (!apiResponse.files) return apiResponse;
 
+    // Extract first http(s) URL from potentially malformed strings
+    function extractFirstHttpUrl(value) {
+        try {
+            if (!value || typeof value !== 'string') return value;
+            const match = value.match(/https?:\/\/[^\s"']+/);
+            return match ? match[0] : value;
+        } catch {
+            return value;
+        }
+    }
+
     const processedFiles = apiResponse.files.map((file) => {
         if (!file.file || typeof file.file !== 'string') return file;
 
         // Check if this is an external proxy URL that we want to replace
         if (needsProxy(file.file)) {
-            const originalUrl = extractOriginalUrl(file.file);
-            const urlObj = new URL(file.file);
-
-            // Only process hls1.vid1.site, hls2.vid1.site, and hls3.vid1.site URLs
-            if (
-                urlObj.hostname === 'hls1.vid1.site' ||
-                urlObj.hostname === 'hls2.vid1.site' ||
-                urlObj.hostname === 'hls3.vid1.site'
-            ) {
-                // Use the M3U8's origin as the referer, not the provider's domain
+            const originalUrl = extractFirstHttpUrl(extractOriginalUrl(file.file));
+            try {
                 const m3u8Origin = new URL(originalUrl).origin;
-                console.log(
-                    `[HLS Proxy Replacement] Original URL: ${originalUrl}`
-                );
-                console.log(
-                    `[HLS Proxy Replacement] M3U8 Origin: ${m3u8Origin}`
-                );
-
                 const proxyHeaders = {
                     Referer: m3u8Origin,
                     Origin: m3u8Origin
                 };
-
                 const localProxyUrl = `${serverUrl}/proxy/hls?link=${encodeURIComponent(
                     originalUrl
                 )}&headers=${encodeURIComponent(JSON.stringify(proxyHeaders))}`;
@@ -319,41 +363,67 @@ export function processApiResponse(apiResponse, serverUrl) {
                     type: 'hls',
                     headers: proxyHeaders
                 };
+            } catch (e) {
+                console.log(`[HLS Proxy Replacement] Skipped invalid URL: ${originalUrl}`);
             }
         }
 
-        // For non-proxy URLs, also fix the referer if it's pointing to the wrong domain
-        if (file.file && file.file.includes('.m3u8') && file.headers) {
+        // For ANY direct M3U8 URL, prefer routing via our m3u8 proxy so we can send the correct headers
+        // and rewrite segments/keys through our ts proxy. This avoids Referer/Origin rejections upstream.
+        if (file.file && file.file.includes('.m3u8')) {
             try {
-                const m3u8Origin = new URL(file.file).origin;
+                const cleaned = extractFirstHttpUrl(file.file);
+                const m3u8Url = new URL(cleaned);
+                const m3u8Origin = m3u8Url.origin;
 
-                // If the current referer doesn't match the M3U8's origin, fix it
-                if (
-                    file.headers.Referer &&
-                    !file.headers.Referer.includes(new URL(file.file).hostname)
-                ) {
-                    console.log(
-                        `[Direct M3U8] Fixing referer for: ${file.file}`
-                    );
-                    console.log(
-                        `[Direct M3U8] Old referer: ${file.headers.Referer} -> New referer: ${m3u8Origin}`
-                    );
+                const proxyHeaders = {
+                    ...(file.headers || {}),
+                    Referer: m3u8Origin,
+                    Origin: m3u8Origin
+                };
 
-                    return {
-                        ...file,
-                        headers: {
-                            ...file.headers,
-                            Referer: m3u8Origin,
-                            Origin: m3u8Origin
-                        }
-                    };
-                }
+                const localProxyUrl = `${serverUrl}/m3u8-proxy?url=${encodeURIComponent(
+                    cleaned
+                )}&headers=${encodeURIComponent(JSON.stringify(proxyHeaders))}`;
+
+                console.log(`[Direct M3U8] Proxied via /m3u8-proxy: ${file.file}`);
+                return {
+                    ...file,
+                    file: localProxyUrl,
+                    type: 'hls',
+                    headers: proxyHeaders
+                };
             } catch (error) {
                 // If URL parsing fails, keep the original file
                 console.log(
                     `[Direct M3U8] URL parsing failed for: ${file.file}`
                 );
             }
+        }
+
+        // For direct MP4 or other media (non-m3u8), proxy through ts-proxy with proper Referer/Origin
+        try {
+            const cleaned = extractFirstHttpUrl(file.file);
+            const urlObj = new URL(cleaned);
+            const isM3u8 = /\.m3u8(\?|$)/i.test(cleaned);
+            if (!isM3u8 && (cleaned.startsWith('http://') || cleaned.startsWith('https://'))) {
+                const origin = urlObj.origin;
+                const proxyHeaders = {
+                    Referer: origin,
+                    Origin: origin
+                };
+                const localProxyUrl = `${serverUrl}/ts-proxy?url=${encodeURIComponent(
+                    cleaned
+                )}&headers=${encodeURIComponent(JSON.stringify(proxyHeaders))}`;
+                console.log(`[Direct Media] Proxied via /ts-proxy: ${file.file}`);
+                return {
+                    ...file,
+                    file: localProxyUrl,
+                    headers: proxyHeaders
+                };
+            }
+        } catch {
+            // ignore
         }
 
         return file; // Return unchanged if no proxy needed

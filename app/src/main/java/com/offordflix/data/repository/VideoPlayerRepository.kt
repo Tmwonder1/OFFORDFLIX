@@ -1,5 +1,8 @@
 package com.offordflix.data.repository
 
+import com.offordflix.data.api.OffordflixApi
+import com.offordflix.data.dto.StreamFileDto
+import com.offordflix.data.dto.StreamingResponseDto
 import com.offordflix.domain.model.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -13,7 +16,9 @@ import javax.inject.Singleton
  * and video metadata management for ExoPlayer integration.
  */
 @Singleton
-class VideoPlayerRepository @Inject constructor() {
+class VideoPlayerRepository @Inject constructor(
+    private val offordflixApi: OffordflixApi
+) {
     
     private val backendBaseUrl = "http://192.168.1.17:3000" // Updated for network access
     
@@ -29,6 +34,53 @@ class VideoPlayerRepository @Inject constructor() {
      */
     fun getTvShowStreamingUrl(tmdbId: String, season: Int, episode: Int): String {
         return "$backendBaseUrl/tv/$tmdbId?s=$season&e=$episode"
+    }
+
+    /**
+     * Fetch backend JSON and return the best playable stream with headers.
+     */
+    suspend fun fetchBestStream(
+        contentType: ContentType,
+        tmdbId: String,
+        season: Int? = null,
+        episode: Int? = null
+    ): Result<ResolvedStream> {
+        return try {
+            val response = when (contentType) {
+                ContentType.MOVIE -> offordflixApi.getMovieStreams(tmdbId)
+                ContentType.TV_SHOW -> offordflixApi.getTvStreams(
+                    tmdbId = tmdbId,
+                    season = season ?: 1,
+                    episode = episode ?: 1
+                )
+            }
+
+            if (!response.isSuccessful) {
+                return Result.failure(IllegalStateException("Backend error: ${response.code()}"))
+            }
+
+            val body: StreamingResponseDto = response.body()
+                ?: return Result.failure(IllegalStateException("Empty streaming response"))
+
+            val files: List<StreamFileDto> = body.data?.files.orEmpty()
+            if (files.isEmpty()) {
+                return Result.failure(IllegalStateException("No streams available"))
+            }
+
+            // Prefer local proxy links first, else pick first HLS with headers
+            val best = files.firstOrNull { it.file.contains("/proxy/hls?") }
+                ?: files.firstOrNull { (it.type?.equals("hls", true) == true) || it.file.endsWith(".m3u8") }
+                ?: files.first()
+
+            Result.success(
+                ResolvedStream(
+                    url = best.file,
+                    headers = best.headers.orEmpty()
+                )
+            )
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
     }
     
     /**
@@ -212,4 +264,9 @@ class VideoPlayerRepository @Inject constructor() {
         emit(emptyList())
     }
 }
+
+data class ResolvedStream(
+    val url: String,
+    val headers: Map<String, String> = emptyMap()
+)
 

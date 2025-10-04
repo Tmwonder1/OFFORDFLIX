@@ -96,6 +96,7 @@ fun ModalNavigationDrawer(
     selectedRoute: String,
     onNavigateToRoute: (String) -> Unit,
     onDrawerStateChanged: (Boolean) -> Unit = {},
+    hideDrawer: Boolean = false, // New parameter to hide drawer when overlays are visible
     modifier: Modifier = Modifier,
     content: @Composable (Boolean, () -> Unit) -> Unit // Pass drawer expanded state and expand function to content
 ) {
@@ -135,7 +136,7 @@ fun ModalNavigationDrawer(
         
         // Modal overlay with enhanced scrim when expanded
         androidx.compose.animation.AnimatedVisibility(
-            visible = drawerState.isExpanded,
+            visible = drawerState.isExpanded && !hideDrawer,
             enter = slideInHorizontally(
                 initialOffsetX = { -it },
                 animationSpec = tween(300)
@@ -205,7 +206,7 @@ fun ModalNavigationDrawer(
         }
         
         // Always visible collapsed navigation rail at screen edge
-        if (!drawerState.isExpanded) {
+        if (!drawerState.isExpanded && !hideDrawer) {
             CollapsedNavigationRail(
                 navigationItems = navigationItems,
                 selectedRoute = selectedRoute,

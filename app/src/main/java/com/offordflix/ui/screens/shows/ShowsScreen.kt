@@ -32,6 +32,7 @@ import com.offordflix.data.ml.InteractionType
 import android.util.Log
 import kotlinx.coroutines.delay
 import com.offordflix.ui.theme.SynopsisFontFamily
+import com.offordflix.ui.utils.ContentMetadataUtils
 
 /**
  * Netflix-style TV shows screen with hero banner and TV show content rows.
@@ -68,13 +69,19 @@ fun NetflixStyleTVShowsScreen(
         hiltViewModel()
     },
     externalFocusRequester: FocusRequester? = null,
-    onExpandDrawer: (() -> Unit)? = null
+    onExpandDrawer: (() -> Unit)? = null,
+    onOverlayVisibilityChanged: (Boolean) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     
     // Local UI state for in-place details overlay
     var selectedContent by remember { mutableStateOf<VideoContent?>(null) }
     var isDetailsVisible by remember { mutableStateOf(false) }
+    
+    // Notify navigation about overlay visibility changes
+    LaunchedEffect(isDetailsVisible) {
+        onOverlayVisibilityChanged(isDetailsVisible)
+    }
     
     // Initialize with profile and load content
     LaunchedEffect(profileId) {
@@ -582,9 +589,23 @@ private fun ContentDetailsOverlay(
                     fontWeight = FontWeight.Bold,
                     maxLines = 2
                 )
+                
+                // All metadata in single continuous line with bullet separators
+                val metadata = ContentMetadataUtils.getFormattedMetadata(content)
+                if (metadata.isNotEmpty()) {
+                    Text(
+                        text = ContentMetadataUtils.joinMetadata(metadata),
+                        color = Color.White.copy(alpha = 0.8f),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 2,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                }
+                
                 if (!content.overview.isNullOrBlank()) {
                     Text(
-                        text = content.overview!!,
+                        text = content.overview,
                         color = Color.White.copy(alpha = 0.9f),
                         fontFamily = SynopsisFontFamily,
                         fontSize = 16.sp,

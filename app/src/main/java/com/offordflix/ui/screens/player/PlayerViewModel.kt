@@ -5,7 +5,10 @@ import androidx.lifecycle.viewModelScope
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.hls.HlsMediaSource
+import androidx.media3.datasource.DefaultHttpDataSource
 import com.offordflix.data.repository.VideoPlayerRepository
+import com.offordflix.domain.model.ContentType
 import com.offordflix.domain.model.*
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
@@ -61,26 +64,30 @@ class PlayerViewModel @Inject constructor(
             try {
                 _uiState.update { it.copy(isLoading = true, error = null) }
                 
-                // Generate streaming URL
-                val streamingUrl = when (content.type) {
-                    ContentType.MOVIE -> videoPlayerRepository.getMovieStreamingUrl(content.tmdbId)
-                    ContentType.TV_SHOW -> videoPlayerRepository.getTvShowStreamingUrl(
-                        content.tmdbId,
-                        content.seasonNumber ?: 1,
-                        content.episodeNumber ?: 1
-                    )
+                // Fetch best stream (JSON → pick .m3u8, apply headers if needed)
+                val bestResult = videoPlayerRepository.fetchBestStream(
+                    contentType = content.type,
+                    tmdbId = content.tmdbId,
+                    season = content.seasonNumber,
+                    episode = content.episodeNumber
+                ).getOrThrow()
+
+                // Build data source with required headers (for direct .m3u8)
+                val dataSourceFactory = DefaultHttpDataSource.Factory().apply {
+                    setAllowCrossProtocolRedirects(true)
+                    if (bestResult.headers.isNotEmpty()) {
+                        setDefaultRequestProperties(bestResult.headers)
+                    }
                 }
-                
-                // Validate URL
-                if (!videoPlayerRepository.isValidStreamingUrl(streamingUrl)) {
-                    throw Exception("Invalid streaming URL")
-                }
-                
-                // Create media item and prepare player
-                val mediaItem = MediaItem.fromUri(streamingUrl)
+
+                val mediaItem = MediaItem.fromUri(bestResult.url)
+                val hlsMediaSource = HlsMediaSource.Factory(dataSourceFactory)
+                    .createMediaSource(mediaItem)
+
                 exoPlayer?.apply {
-                    setMediaItem(mediaItem)
+                    setMediaSource(hlsMediaSource)
                     prepare()
+                    play()
                 }
                 
                 // Load additional metadata
@@ -90,7 +97,7 @@ class PlayerViewModel @Inject constructor(
                     it.copy(
                         isLoading = false,
                         content = content,
-                        streamingUrl = streamingUrl
+                        streamingUrl = bestResult.url
                     ) 
                 }
                 

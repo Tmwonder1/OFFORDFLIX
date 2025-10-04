@@ -67,13 +67,19 @@ fun NetflixStyleHomeScreen(
         hiltViewModel()
     },
     externalFocusRequester: FocusRequester? = null,
-    onExpandDrawer: (() -> Unit)? = null
+    onExpandDrawer: (() -> Unit)? = null,
+    onOverlayVisibilityChanged: (Boolean) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     
     // Local UI state for in-place details overlay
     var selectedContent by remember { mutableStateOf<VideoContent?>(null) }
     var isDetailsVisible by remember { mutableStateOf(false) }
+    
+    // Notify navigation about overlay visibility changes
+    LaunchedEffect(isDetailsVisible) {
+        onOverlayVisibilityChanged(isDetailsVisible)
+    }
     
     // Initialize with profile and load content
     LaunchedEffect(profileId) {

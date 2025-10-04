@@ -32,6 +32,7 @@ import androidx.compose.animation.core.*
 import com.offordflix.domain.model.VideoContent
 import com.offordflix.domain.model.ContentType
 import com.offordflix.ui.theme.SynopsisFontFamily
+import com.offordflix.ui.utils.ContentMetadataUtils
 
 /**
  * Netflix-style hero banner component.
@@ -105,45 +106,17 @@ fun HeroBanner(
                 )
             }
             
-            // Type and rating
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Content type badge
-                Badge(
-                    modifier = Modifier.background(
-                        MaterialTheme.colorScheme.primary,
-                        RoundedCornerShape(4.dp)
-                    )
-                ) {
-                    Text(
-                        text = if (content.type == ContentType.MOVIE) "MOVIE" else "TV SHOW",
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
-                }
-                
-                // Rating
-                if (content.voteAverage > 0) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        Text(
-                            text = "⭐",
-                            fontSize = 16.sp
-                        )
-                        Text(
-                            text = "%.1f".format(content.voteAverage),
-                            color = Color.White,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-                }
+            // All metadata in single continuous line with bullet separators
+            val metadata = ContentMetadataUtils.getFormattedMetadata(content)
+            if (metadata.isNotEmpty()) {
+                Text(
+                    text = ContentMetadataUtils.joinMetadata(metadata),
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
             
             // Overview

@@ -15,22 +15,28 @@ import { contentRoutes } from './src/routes/content.js';
 import { settingsRoutes } from './src/routes/settings.js';
 
 const PORT = process.env.PORT || 3000;
-const allowedOrigins = ['https://cinepro.mintlify.app/', 'http://localhost:*'];
 const app = express();
 
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-app.use(cors({
-    origin: (origin, callback) => {
-        !origin || 
-        allowedOrigins.some(allowed => origin.match(allowed.replace('*', '.*'))) ||
-        /^http:\/\/localhost/.test(origin)
-            ? callback(null, true)
-            : callback(new Error('Not allowed by CORS'));
-    }
-}));
+// Relax CORS for development and app/webview environments so HLS proxying works from devices
+const allowAllCors = process.env.NODE_ENV !== 'production' || process.env.ALLOW_ALL_CORS === 'true';
+if (allowAllCors) {
+    app.use(cors());
+} else {
+    const allowedOrigins = ['https://cinepro.mintlify.app', 'http://localhost:*'];
+    app.use(cors({
+        origin: (origin, callback) => {
+            if (!origin || origin === 'null') return callback(null, true);
+            const isAllowed =
+                allowedOrigins.some((allowed) => origin.match(allowed.replace('*', '.*'))) ||
+                /^http:\/\/(localhost|127\.0\.0\.1)(:\\d+)?$/.test(origin);
+            return isAllowed ? callback(null, true) : callback(new Error('Not allowed by CORS'));
+        }
+    }));
+}
 
 createProxyRoutes(app);
 

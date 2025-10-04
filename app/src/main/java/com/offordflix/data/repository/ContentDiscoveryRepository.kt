@@ -762,6 +762,7 @@ class ContentDiscoveryRepository @Inject constructor(
         logoUrl = null, // Will be populated asynchronously via enrichContentWithLogos()
         overview = overview,
         releaseDate = firstAirDate,
+        runtime = episodeRunTime.firstOrNull(), // Use first episode runtime as representative
         voteAverage = voteAverage,
         genres = genres.map { it.name },
         seasonCount = numberOfSeasons,

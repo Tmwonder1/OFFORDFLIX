@@ -85,7 +85,10 @@ data class TmdbContentDto(
     @SerialName("adult") val adult: Boolean = false,
     @SerialName("original_language") val originalLanguage: String? = null,
     @SerialName("popularity") val popularity: Double = 0.0,
-    @SerialName("logo_path") val logoPath: String? = null
+    @SerialName("logo_path") val logoPath: String? = null,
+    // TV Show specific fields
+    @SerialName("number_of_seasons") val numberOfSeasons: Int? = null,
+    @SerialName("number_of_episodes") val numberOfEpisodes: Int? = null
 ) {
     /**
      * Convert to VideoContent domain model.
@@ -148,7 +151,10 @@ data class TmdbContentDto(
             releaseDate = contentReleaseDate,
             runtime = contentRuntime,
             genres = genreNames,
-            popularity = popularity
+            popularity = popularity,
+            // TV Show specific fields
+            seasonCount = numberOfSeasons,
+            episodeCount = numberOfEpisodes
         )
     }
 }
