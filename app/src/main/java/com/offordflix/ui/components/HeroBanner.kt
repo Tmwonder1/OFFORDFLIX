@@ -82,7 +82,7 @@ fun HeroBanner(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Title - Use logo if available, otherwise text
-            var logoLoadError by remember { mutableStateOf(false) }
+            var logoLoadError by remember(content.tmdbId, content.logoUrl) { mutableStateOf(false) }
             
             if (content.logoUrl != null && !logoLoadError) {
                 EnhancedLogoImage(

@@ -86,6 +86,7 @@ fun NetflixStyleMoviesScreen(
     // Local UI state for in-place details overlay
     var selectedContent by remember { mutableStateOf<VideoContent?>(null) }
     var isDetailsVisible by remember { mutableStateOf(false) }
+    var pinnedHeroContent by remember { mutableStateOf<VideoContent?>(null) }
     
     // Notify navigation about overlay visibility changes
     LaunchedEffect(isDetailsVisible) {
@@ -149,7 +150,8 @@ fun NetflixStyleMoviesScreen(
             .background(MaterialTheme.colorScheme.background)
     ) {
         // Dynamic Hero Banner - changes based on focused content
-        val heroContent = remember(currentRowIndex, currentItemIndex, uiState) {
+    val heroContent = remember(currentRowIndex, currentItemIndex, uiState, pinnedHeroContent) {
+            pinnedHeroContent?.let { return@remember it }
             if (contentRows.isNotEmpty() && currentRowIndex < contentRows.size) {
                 val currentRowContent = contentRows[currentRowIndex].second.take(10)
                 if (currentItemIndex < currentRowContent.size) {
@@ -398,6 +400,20 @@ fun NetflixStyleMoviesScreen(
                 },
                 onDismiss = {
                     isDetailsVisible = false
+                    pinnedHeroContent = null
+                },
+                onSimilarClick = { similar ->
+                    viewModel.onContentSelected(similar)
+                    selectedContent = similar
+                    pinnedHeroContent = similar
+                    isDetailsVisible = true
+                    coroutineScope.launch {
+                        val detailed = viewModel.fetchDetailedContent(similar)
+                        selectedContent = detailed
+                        pinnedHeroContent = detailed
+                        // Nudge recomposition of hero banner
+                        currentRowIndex = currentRowIndex
+                    }
                 }
             )
         }
@@ -562,10 +578,18 @@ private fun ContentDetailsOverlay(
     isInWatchlist: Boolean,
     onPlay: () -> Unit,
     onToggleWatchlist: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onSimilarClick: (VideoContent) -> Unit
 ) {
     val focusRequester = remember { FocusRequester() }
     var isExpanded by remember { mutableStateOf(false) }
+    var similarFocusIndex by remember { mutableStateOf(0) }
+
+    // Ensure collapsed by default whenever a new content is shown in the overlay
+    LaunchedEffect(content.id) {
+        isExpanded = false
+        similarFocusIndex = 0
+    }
     
     // Request initial focus so D-pad works inside the panel
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
@@ -575,7 +599,7 @@ private fun ContentDetailsOverlay(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .height(if (isExpanded) 400.dp else 260.dp)
+                .height(if (isExpanded) 400.dp else 72.dp)
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
@@ -597,6 +621,7 @@ private fun ContentDetailsOverlay(
                             Key.DirectionDown -> {
                                 if (!isExpanded) {
                                     isExpanded = true
+                                    similarFocusIndex = 0
                                     true
                                 } else false
                             }
@@ -604,6 +629,31 @@ private fun ContentDetailsOverlay(
                                 if (isExpanded) {
                                     isExpanded = false
                                     true
+                                } else false
+                            }
+                            Key.DirectionLeft -> {
+                                if (isExpanded) {
+                                    similarFocusIndex = (similarFocusIndex - 1).coerceAtLeast(0)
+                                    true
+                                } else false
+                            }
+                            Key.DirectionRight -> {
+                                if (isExpanded) {
+                                    val max = content.similarContent.take(10).size
+                                    if (max > 0) {
+                                        similarFocusIndex = (similarFocusIndex + 1).coerceAtMost(max - 1)
+                                    }
+                                    true
+                                } else false
+                            }
+                            Key.DirectionCenter, Key.Enter -> {
+                                if (isExpanded) {
+                                    val list = content.similarContent.take(10)
+                                    if (list.isNotEmpty()) {
+                                        val selected = list[similarFocusIndex]
+                                        onSimilarClick(selected)
+                                        true
+                                    } else false
                                 } else false
                             }
                             else -> false
@@ -614,119 +664,62 @@ private fun ContentDetailsOverlay(
         ) {
         Column(
             modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Cast section
+            if (!isExpanded) {
+                Text(
+                    text = "Cast",
+                    color = Color.White,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "Press DOWN to expand",
+                    color = Color.White.copy(alpha = 0.6f),
+                    fontSize = 12.sp
+                )
+            } else {
             Text(
                 text = "Cast",
                 color = Color.White,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold
             )
-            
-            // Cast tiles row
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 contentPadding = PaddingValues(horizontal = 4.dp)
             ) {
-                val castList = content.cast
+                    val castList = content.cast
                 items(castList.take(8)) { castMember ->
                     CastTile(castMember = castMember)
-                }
-            }
-            
-            // Movie/Show information
-            Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                // Genres
-                if (content.genres.isNotEmpty()) {
-                    Text(
-                        text = "Genres: ${content.genres.joinToString(", ")}",
-                        color = Color.White.copy(alpha = 0.8f),
-                        fontSize = 14.sp
-                    )
-                }
-                
-                // Release date and runtime
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    content.releaseDate?.let { date ->
-                        Text(
-                            text = "Released: $date",
-                            color = Color.White.copy(alpha = 0.8f),
-                            fontSize = 14.sp
-                        )
-                    }
-                    
-                    content.runtime?.let { runtime ->
-                        val hours = runtime / 60
-                        val minutes = runtime % 60
-                        val runtimeText = if (hours > 0) "${hours}h ${minutes}m" else "${minutes}m"
-                        Text(
-                            text = "Runtime: $runtimeText",
-                            color = Color.White.copy(alpha = 0.8f),
-                            fontSize = 14.sp
-                        )
                     }
                 }
-                
-                // Rating
-                if (content.voteAverage > 0) {
-                    Text(
-                        text = "Rating: ★ ${String.format("%.1f", content.voteAverage)}/10",
-                        color = Color.White.copy(alpha = 0.8f),
-                        fontSize = 14.sp
-                    )
-                }
-            }
-            
-            // More Like This section (shown when expanded)
-            if (isExpanded) {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
+                Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         text = "More Like This",
                         color = Color.White,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold
                     )
-                    
-                    // Similar content row
+                val similarList = content.similarContent.take(10)
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         contentPadding = PaddingValues(horizontal = 4.dp)
                     ) {
-                        val similarList = content.similarContent.take(6)
-                        if (similarList.isNotEmpty()) {
-                            items(similarList) { similarContent ->
-                                AsyncImage(
-                                    model = similarContent.posterUrl,
-                                    contentDescription = similarContent.title,
-                                    modifier = Modifier
-                                        .width(60.dp)
-                                        .height(90.dp)
-                                        .clip(RoundedCornerShape(4.dp)),
-                                    contentScale = ContentScale.Crop
-                                )
-                            }
-                        }
+                    items(similarList.size) { index ->
+                        val similarContent = similarList[index]
+                        ContentCard(
+                            content = similarContent,
+                            onClick = { onSimilarClick(similarContent) },
+                            onPlayClick = { onSimilarClick(similarContent) },
+                            onWatchlistClick = {},
+                            isInWatchlist = false,
+                            isManuallyFocused = index == similarFocusIndex
+                        )
                     }
-                    
-                    Text(
-                        text = "Press UP to collapse",
-                        color = Color.White.copy(alpha = 0.6f),
-                        fontSize = 12.sp,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
                 }
-            } else {
-                // Show expansion hint when not expanded
                 Text(
-                    text = "Press DOWN for more like this",
+                    text = "Press UP to collapse",
                     color = Color.White.copy(alpha = 0.6f),
                     fontSize = 12.sp,
                     textAlign = TextAlign.Center,

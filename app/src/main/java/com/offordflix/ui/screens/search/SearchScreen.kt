@@ -701,9 +701,9 @@ private fun ContentDetailsOverlay(
                                     AsyncImage(
                                         model = similarContent.posterUrl,
                                         contentDescription = similarContent.title,
-                                        modifier = Modifier
-                                            .width(50.dp)
-                                            .height(75.dp)
+                                    modifier = Modifier
+                                        .width(50.dp)
+                                        .height(75.dp)
                                             .clip(RoundedCornerShape(4.dp)),
                                         contentScale = ContentScale.Crop
                                     )

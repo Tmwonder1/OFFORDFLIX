@@ -463,11 +463,21 @@ class TVShowsViewModel @Inject constructor(
             when (content.type) {
                 com.offordflix.domain.model.ContentType.MOVIE -> {
                     val response = contentDiscoveryRepository.getMovieDetails(tmdbId)
-                    response.getOrNull() ?: content
+                    val details = response.getOrNull() ?: return content
+                    try {
+                        contentDiscoveryRepository.enrichContentWithLogos(listOf(details)).firstOrNull() ?: details
+                    } catch (_: Exception) {
+                        details
+                    }
                 }
                 com.offordflix.domain.model.ContentType.TV_SHOW -> {
                     val response = contentDiscoveryRepository.getTvShowDetails(tmdbId)
-                    response.getOrNull() ?: content
+                    val details = response.getOrNull() ?: return content
+                    try {
+                        contentDiscoveryRepository.enrichContentWithLogos(listOf(details)).firstOrNull() ?: details
+                    } catch (_: Exception) {
+                        details
+                    }
                 }
             }
         } catch (e: Exception) {
