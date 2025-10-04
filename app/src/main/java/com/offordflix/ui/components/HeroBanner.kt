@@ -47,9 +47,9 @@ import com.offordflix.ui.utils.ContentMetadataUtils
 @Composable
 fun HeroBanner(
     content: VideoContent,
-    onPlay: () -> Unit,
-    onMoreInfo: () -> Unit,
-    onAddToWatchlist: () -> Unit,
+    onPlay: () -> Unit = {},
+    onMoreInfo: () -> Unit = {},
+    onAddToWatchlist: () -> Unit = {},
     isInWatchlist: Boolean = false,
     modifier: Modifier = Modifier
 ) {
@@ -130,65 +130,7 @@ fun HeroBanner(
                 overflow = TextOverflow.Ellipsis
             )
             
-            // Enhanced action buttons with focus animations
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.padding(top = 16.dp)
-            ) {
-                // Play button (simplified for performance)
-                Button(
-                    onClick = onPlay,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary
-                    ),
-                    modifier = Modifier.focusable()
-                ) {
-                    Text(
-                        text = "▶ Play",
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
-                }
-                
-                // More info button (simplified for performance)
-                Button(
-                    onClick = onMoreInfo,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.Black.copy(alpha = 0.6f)
-                    ),
-                    modifier = Modifier.focusable()
-                ) {
-                    Text(
-                        text = "ℹ More Info",
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
-                }
-                
-                // Watchlist button (simplified for performance)
-                Button(
-                    onClick = onAddToWatchlist,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isInWatchlist) 
-                            MaterialTheme.colorScheme.secondary 
-                        else 
-                            Color.Black.copy(alpha = 0.6f)
-                    ),
-                    modifier = Modifier.focusable()
-                ) {
-                    Text(
-                        text = if (isInWatchlist) "✓ In List" else "+ My List",
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
-                }
-            }
+            // Buttons removed as per user request
         }
     }
 }

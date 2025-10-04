@@ -454,6 +454,29 @@ class TVShowsViewModel @Inject constructor(
     }
     
     /**
+     * Fetch detailed content with cast and similar content.
+     */
+    suspend fun fetchDetailedContent(content: VideoContent): VideoContent {
+        return try {
+            val tmdbId = content.tmdbId.toIntOrNull() ?: return content
+            
+            when (content.type) {
+                com.offordflix.domain.model.ContentType.MOVIE -> {
+                    val response = contentDiscoveryRepository.getMovieDetails(tmdbId)
+                    response.getOrNull() ?: content
+                }
+                com.offordflix.domain.model.ContentType.TV_SHOW -> {
+                    val response = contentDiscoveryRepository.getTvShowDetails(tmdbId)
+                    response.getOrNull() ?: content
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("TVShowsViewModel", "Failed to fetch detailed content", e)
+            content
+        }
+    }
+    
+    /**
      * Clear error message.
      */
     fun clearError() {

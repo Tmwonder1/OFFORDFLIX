@@ -747,7 +747,9 @@ class ContentDiscoveryRepository @Inject constructor(
         releaseDate = releaseDate,
         runtime = runtime,
         voteAverage = voteAverage,
-        genres = genres.map { it.name }
+        genres = genres.map { it.name },
+        cast = credits?.cast?.take(8)?.map { it.toCastMember() } ?: emptyList(),
+        similarContent = similar?.results?.take(6)?.map { it.toVideoContent() } ?: emptyList()
     )
     }
 
@@ -766,7 +768,9 @@ class ContentDiscoveryRepository @Inject constructor(
         voteAverage = voteAverage,
         genres = genres.map { it.name },
         seasonCount = numberOfSeasons,
-        episodeCount = numberOfEpisodes
+        episodeCount = numberOfEpisodes,
+        cast = credits?.cast?.take(8)?.map { it.toCastMember() } ?: emptyList(),
+        similarContent = similar?.results?.take(6)?.map { it.toVideoContent() } ?: emptyList()
     )
     }
 
@@ -774,6 +778,16 @@ class ContentDiscoveryRepository @Inject constructor(
         return Genre(
             id = id,
             name = name
+        )
+    }
+    
+    private fun TmdbCastDto.toCastMember(): CastMember {
+        return CastMember(
+            id = id,
+            name = name,
+            character = character,
+            profileImageUrl = profilePath?.let { "${TmdbApi.IMAGE_BASE_URL}${TmdbApi.PROFILE_SIZE}$it" },
+            order = order
         )
     }
 

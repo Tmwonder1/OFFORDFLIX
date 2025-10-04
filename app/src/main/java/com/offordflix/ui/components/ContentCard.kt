@@ -143,13 +143,17 @@ fun ContentCard(
             
             // Clean poster display - no overlays when not focused
             
-            // Overlay with content info and actions (shown on focus)
+            // Action overlay with gradient scrim (shown on focus)
             if (showOverlay) {
-                ContentOverlay(
+                ContentActionOverlay(
                     content = content,
-                    onPlayClick = onPlayClick,
-                    onWatchlistClick = onWatchlistClick,
                     isInWatchlist = isInWatchlist,
+                    isInContinueWatching = showProgress && progress > 0,
+                    onPlay = onPlayClick,
+                    onPlayFromBeginning = onPlayClick, // Same action for now
+                    onSeasonsClick = { /* TODO: Implement seasons navigation */ },
+                    onToggleWatchlist = onWatchlistClick,
+                    onRemoveFromContinueWatch = { /* TODO: Implement remove from continue watching */ },
                     modifier = Modifier.align(Alignment.BottomCenter)
                 )
             }

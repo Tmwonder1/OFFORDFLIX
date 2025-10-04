@@ -3,6 +3,7 @@ package com.offordflix.ui.screens.movies
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -19,15 +20,22 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import com.offordflix.domain.model.VideoContent
 import com.offordflix.ui.components.ContentCard
 import com.offordflix.ui.components.HeroBanner
+import com.offordflix.ui.components.CastTile
 import com.offordflix.data.ml.InteractionType
 import android.util.Log
 import kotlinx.coroutines.delay
@@ -73,6 +81,7 @@ fun NetflixStyleMoviesScreen(
     onOverlayVisibilityChanged: (Boolean) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val coroutineScope = rememberCoroutineScope()
     
     // Local UI state for in-place details overlay
     var selectedContent by remember { mutableStateOf<VideoContent?>(null) }
@@ -140,11 +149,7 @@ fun NetflixStyleMoviesScreen(
             .background(MaterialTheme.colorScheme.background)
     ) {
         // Dynamic Hero Banner - changes based on focused content
-        val heroContent = remember(currentRowIndex, currentItemIndex, uiState, selectedContent, isDetailsVisible) {
-            // When details overlay is visible, pin hero to the selected content
-            if (isDetailsVisible && selectedContent != null) {
-                return@remember selectedContent
-            }
+        val heroContent = remember(currentRowIndex, currentItemIndex, uiState) {
             if (contentRows.isNotEmpty() && currentRowIndex < contentRows.size) {
                 val currentRowContent = contentRows[currentRowIndex].second.take(10)
                 if (currentItemIndex < currentRowContent.size) {
@@ -178,10 +183,14 @@ fun NetflixStyleMoviesScreen(
                         onNavigateToPlayer(targetContent) 
                     },
                     onMoreInfo = {
-                        // Show in-place details overlay instead of navigation
+                        // Show in-place details overlay and fetch full details
                         selectedContent = targetContent
                         isDetailsVisible = true
                         viewModel.onContentSelected(targetContent)
+                        coroutineScope.launch {
+                            val detailed = viewModel.fetchDetailedContent(targetContent)
+                            selectedContent = detailed
+                        }
                     },
                     onAddToWatchlist = { viewModel.addToWatchlist(targetContent) },
                     isInWatchlist = uiState.watchlistMovies.any { it.id == targetContent.id },
@@ -298,6 +307,12 @@ fun NetflixStyleMoviesScreen(
                                         viewModel.onContentSelected(clickedContent)
                                         selectedContent = clickedContent
                                         isDetailsVisible = true
+                                        // Fetch details (credits, similar) immediately
+                                        coroutineScope.launch {
+                                            val detailed = viewModel.fetchDetailedContent(clickedContent)
+                                            selectedContent = detailed
+                                            Log.d("MoviesScreen", "Fetched details for overlay: cast=${detailed.cast.size}, similar=${detailed.similarContent.size}")
+                                        }
                                     }
                                     true
                                 }
@@ -341,6 +356,13 @@ fun NetflixStyleMoviesScreen(
                                 viewModel.onContentSelected(content)
                                 selectedContent = content
                                 isDetailsVisible = true
+                                
+                                // Fetch detailed content with cast and similar data
+                                coroutineScope.launch {
+                                    val detailedContent = viewModel.fetchDetailedContent(content)
+                                    selectedContent = detailedContent
+                                    Log.d("MoviesScreen", "Detailed content fetched with ${detailedContent.cast.size} cast members and ${detailedContent.similarContent.size} similar items")
+                                }
                                 Log.d("MoviesScreen", "selectedContent updated to title='${selectedContent?.title}', id=${selectedContent?.id}")
                             },
                             onPlayClick = { content ->
@@ -543,6 +565,7 @@ private fun ContentDetailsOverlay(
     onDismiss: () -> Unit
 ) {
     val focusRequester = remember { FocusRequester() }
+    var isExpanded by remember { mutableStateOf(false) }
     
     // Request initial focus so D-pad works inside the panel
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
@@ -552,7 +575,7 @@ private fun ContentDetailsOverlay(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .height(260.dp)
+                .height(if (isExpanded) 400.dp else 260.dp)
                 .background(
                     Brush.verticalGradient(
                         colors = listOf(
@@ -565,72 +588,152 @@ private fun ContentDetailsOverlay(
                 .focusRequester(focusRequester)
                 .focusable()
                 .onPreviewKeyEvent { keyEvent ->
-                    if (keyEvent.type == KeyEventType.KeyDown && (keyEvent.key == Key.Back || keyEvent.key == Key.Escape)) {
-                        onDismiss()
-                        true
+                    if (keyEvent.type == KeyEventType.KeyDown) {
+                        when (keyEvent.key) {
+                            Key.Back, Key.Escape -> {
+                                onDismiss()
+                                true
+                            }
+                            Key.DirectionDown -> {
+                                if (!isExpanded) {
+                                    isExpanded = true
+                                    true
+                                } else false
+                            }
+                            Key.DirectionUp -> {
+                                if (isExpanded) {
+                                    isExpanded = false
+                                    true
+                                } else false
+                            }
+                            else -> false
+                        }
                     } else false
                 }
                 .padding(horizontal = 48.dp, vertical = 16.dp)
         ) {
-        Row(
+        Column(
             modifier = Modifier.fillMaxSize(),
-            horizontalArrangement = Arrangement.spacedBy(24.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Left: Title and overview
+            // Cast section
+            Text(
+                text = "Cast",
+                color = Color.White,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold
+            )
+            
+            // Cast tiles row
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(horizontal = 4.dp)
+            ) {
+                val castList = content.cast
+                items(castList.take(8)) { castMember ->
+                    CastTile(castMember = castMember)
+                }
+            }
+            
+            // Movie/Show information
             Column(
-                modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
-                    text = content.title,
-                    color = Color.White,
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 2
-                )
-                
-                // All metadata in single continuous line with bullet separators
-                val metadata = ContentMetadataUtils.getFormattedMetadata(content)
-                if (metadata.isNotEmpty()) {
+                // Genres
+                if (content.genres.isNotEmpty()) {
                     Text(
-                        text = ContentMetadataUtils.joinMetadata(metadata),
+                        text = "Genres: ${content.genres.joinToString(", ")}",
                         color = Color.White.copy(alpha = 0.8f),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 2,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        fontSize = 14.sp
                     )
                 }
                 
-                if (!content.overview.isNullOrBlank()) {
+                // Release date and runtime
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    content.releaseDate?.let { date ->
+                        Text(
+                            text = "Released: $date",
+                            color = Color.White.copy(alpha = 0.8f),
+                            fontSize = 14.sp
+                        )
+                    }
+                    
+                    content.runtime?.let { runtime ->
+                        val hours = runtime / 60
+                        val minutes = runtime % 60
+                        val runtimeText = if (hours > 0) "${hours}h ${minutes}m" else "${minutes}m"
+                        Text(
+                            text = "Runtime: $runtimeText",
+                            color = Color.White.copy(alpha = 0.8f),
+                            fontSize = 14.sp
+                        )
+                    }
+                }
+                
+                // Rating
+                if (content.voteAverage > 0) {
                     Text(
-                        text = content.overview,
-                        color = Color.White.copy(alpha = 0.9f),
-                        fontFamily = SynopsisFontFamily,
-                        fontSize = 16.sp,
-                        lineHeight = 20.sp,
-                        maxLines = 4
+                        text = "Rating: ★ ${String.format("%.1f", content.voteAverage)}/10",
+                        color = Color.White.copy(alpha = 0.8f),
+                        fontSize = 14.sp
                     )
                 }
             }
             
-            // Right: Actions
-            Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Button(onClick = onPlay) {
-                    Text("Play")
+            // More Like This section (shown when expanded)
+            if (isExpanded) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Text(
+                        text = "More Like This",
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    
+                    // Similar content row
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(horizontal = 4.dp)
+                    ) {
+                        val similarList = content.similarContent.take(6)
+                        if (similarList.isNotEmpty()) {
+                            items(similarList) { similarContent ->
+                                AsyncImage(
+                                    model = similarContent.posterUrl,
+                                    contentDescription = similarContent.title,
+                                    modifier = Modifier
+                                        .width(60.dp)
+                                        .height(90.dp)
+                                        .clip(RoundedCornerShape(4.dp)),
+                                    contentScale = ContentScale.Crop
+                                )
+                            }
+                        }
+                    }
+                    
+                    Text(
+                        text = "Press UP to collapse",
+                        color = Color.White.copy(alpha = 0.6f),
+                        fontSize = 12.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
-                Button(onClick = onToggleWatchlist) {
-                    Text(if (isInWatchlist) "Remove from My List" else "+ My List")
-                }
-                Button(onClick = onDismiss) {
-                    Text("Back")
-                }
+            } else {
+                // Show expansion hint when not expanded
+                Text(
+                    text = "Press DOWN for more like this",
+                    color = Color.White.copy(alpha = 0.6f),
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
-            }
+        }
         }
     }
 }

@@ -37,6 +37,27 @@ class SearchViewModel @Inject constructor(
     }
     
     /**
+     * Fetch detailed content with credits and similar titles from TMDB.
+     */
+    suspend fun fetchDetailedContent(content: VideoContent): VideoContent {
+        return try {
+            val tmdbId = content.tmdbId.toIntOrNull() ?: return content
+            when (content.type) {
+                ContentType.MOVIE -> {
+                    val response = contentDiscoveryRepository.getMovieDetails(tmdbId)
+                    response.getOrNull() ?: content
+                }
+                ContentType.TV_SHOW -> {
+                    val response = contentDiscoveryRepository.getTvShowDetails(tmdbId)
+                    response.getOrNull() ?: content
+                }
+            }
+        } catch (e: Exception) {
+            content
+        }
+    }
+
+    /**
      * Set the current active profile.
      */
     fun setProfile(profile: Profile) {

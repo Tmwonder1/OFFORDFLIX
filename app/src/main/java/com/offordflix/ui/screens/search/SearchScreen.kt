@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -38,11 +40,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 import coil.compose.AsyncImage
 import com.offordflix.domain.model.VideoContent
 import com.offordflix.ui.components.ContentCard
 import com.offordflix.ui.components.FullWidthLeftScrimOverlay
 import com.offordflix.ui.components.ScrimIntensity
+import com.offordflix.ui.components.CastTile
 import com.offordflix.ui.theme.SynopsisFontFamily
 import com.offordflix.ui.utils.ContentMetadataUtils
 
@@ -66,6 +70,7 @@ fun SearchScreen(
     onOverlayVisibilityChanged: (Boolean) -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val coroutineScope = rememberCoroutineScope()
     
     // Local UI state for details overlay
     var selectedContent by remember { mutableStateOf<VideoContent?>(null) }
@@ -165,6 +170,11 @@ fun SearchScreen(
                             onContentClick = { content ->
                                 selectedContent = content
                                 isDetailsVisible = true
+                                // Fetch full details (credits, similar) asynchronously
+                                coroutineScope.launch {
+                                    val detailed = viewModel.fetchDetailedContent(content)
+                                    selectedContent = detailed
+                                }
                             },
                     onPlayClick = onNavigateToPlayer,
                     onAddToWatchlist = viewModel::addToWatchlist,
@@ -594,6 +604,7 @@ private fun ContentDetailsOverlay(
     onDismiss: () -> Unit
 ) {
     val focusRequester = remember { FocusRequester() }
+    var isExpanded by remember { mutableStateOf(false) }
     
     // Request initial focus so D-pad works inside the panel
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
@@ -604,176 +615,118 @@ private fun ContentDetailsOverlay(
             .focusRequester(focusRequester)
             .focusable()
             .onKeyEvent { keyEvent ->
-                if (keyEvent.type == KeyEventType.KeyDown && (keyEvent.key == Key.Back || keyEvent.key == Key.Escape)) {
-                    onDismiss()
-                    true
+                if (keyEvent.type == KeyEventType.KeyDown) {
+                    when (keyEvent.key) {
+                        Key.Back, Key.Escape -> {
+                            onDismiss()
+                            true
+                        }
+                        Key.DirectionDown -> {
+                            if (!isExpanded) {
+                                isExpanded = true
+                                true
+                            } else false
+                        }
+                        Key.DirectionUp -> {
+                            if (isExpanded) {
+                                isExpanded = false
+                                true
+                            } else false
+                        }
+                        else -> false
+                    }
                 } else false
             }
     ) {
-        // Background image with fallback hierarchy
-        var backdropLoadError by remember { mutableStateOf(false) }
-        var posterLoadError by remember { mutableStateOf(false) }
-        
-        when {
-            // Try backdrop first
-            content.backdropUrl != null && !backdropLoadError -> {
-                AsyncImage(
-                    model = content.backdropUrl,
-                    contentDescription = content.title,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop,
-                    onError = {
-                        backdropLoadError = true
-                    }
-                )
-            }
-            // Fallback to poster if backdrop fails or is null
-            content.posterUrl != null && !posterLoadError -> {
-                AsyncImage(
-                    model = content.posterUrl,
-                    contentDescription = content.title,
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop,
-                    onError = {
-                        posterLoadError = true
-                    }
-                )
-            }
-            // Final fallback to gradient background
-            else -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                colors = listOf(
-                                    Color(0xFF1a1a2e),
-                                    Color(0xFF16213e),
-                                    Color(0xFF0f3460)
-                                )
-                            )
-                        )
-                )
-            }
-        }
-        
-        // Left scrim overlay for text readability
-        FullWidthLeftScrimOverlay(
-            intensity = ScrimIntensity.Strong,
-            scrimWidthRatio = 0.65f,
-            modifier = Modifier.fillMaxSize()
-        )
-        
-        // Content information and actions
-        Row(
+        // Bottom area for cast tiles and expandable content only (keep underlying screen intact)
+        Box(
             modifier = Modifier
-                .align(Alignment.CenterStart)
-                .padding(48.dp)
-                .fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(32.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(if (isExpanded) 300.dp else 180.dp)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(
+                            Color.Transparent,
+                            Color.Black.copy(alpha = 0.85f),
+                            Color.Black.copy(alpha = 0.95f)
+                        )
+                    )
+                )
+                .padding(horizontal = 48.dp, vertical = 16.dp)
         ) {
-            // Left: Title and overview
             Column(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                modifier = Modifier.fillMaxSize(),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Title - Use logo if available, otherwise text
-                var logoLoadError by remember { mutableStateOf(false) }
+                // Cast section
+                Text(
+                    text = "Cast",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
                 
-                if (content.logoUrl != null && !logoLoadError) {
-                    AsyncImage(
-                        model = content.logoUrl,
-                        contentDescription = content.title,
-                        modifier = Modifier
-                            .height(80.dp)
-                            .widthIn(max = 400.dp),
-                        contentScale = ContentScale.Fit,
-                        onError = {
-                            logoLoadError = true
+                // Cast tiles row
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(horizontal = 4.dp)
+                ) {
+                    val castList = content.cast
+                    items(castList.take(8)) { castMember ->
+                        CastTile(castMember = castMember)
+                    }
+                }
+                
+                // More Like This section (shown when expanded)
+                if (isExpanded) {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "More Like This",
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        
+                        // Similar content row
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            contentPadding = PaddingValues(horizontal = 4.dp)
+                        ) {
+                            val similarList = content.similarContent.take(6)
+                            if (similarList.isNotEmpty()) {
+                                items(similarList) { similarContent ->
+                                    AsyncImage(
+                                        model = similarContent.posterUrl,
+                                        contentDescription = similarContent.title,
+                                        modifier = Modifier
+                                            .width(50.dp)
+                                            .height(75.dp)
+                                            .clip(RoundedCornerShape(4.dp)),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                }
+                            }
                         }
-                    )
+                        
+                        Text(
+                            text = "Press UP to collapse",
+                            color = Color.White.copy(alpha = 0.6f),
+                            fontSize = 11.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                 } else {
+                    // Show expansion hint when not expanded
                     Text(
-                        text = content.title,
-                        fontSize = 48.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White,
-                        maxLines = 2
-                    )
-                }
-                
-                // All metadata in single continuous line with bullet separators
-                val metadata = ContentMetadataUtils.getFormattedMetadata(content)
-                if (metadata.isNotEmpty()) {
-                    Text(
-                        text = ContentMetadataUtils.joinMetadata(metadata),
-                        color = Color.White.copy(alpha = 0.8f),
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 2,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                    )
-                }
-                
-                // Overview
-                if (!content.overview.isNullOrBlank()) {
-                    Text(
-                        text = content.overview,
-                        color = Color.White.copy(alpha = 0.9f),
-                        fontFamily = SynopsisFontFamily,
-                        fontSize = 18.sp,
-                        lineHeight = 24.sp,
-                        maxLines = 4
-                    )
-                }
-            }
-            
-            // Right: Actions
-            Column(
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Button(
-                    onClick = onPlay,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.White,
-                        contentColor = Color.Black
-                    ),
-                    modifier = Modifier.height(48.dp)
-                ) {
-                    Text(
-                        text = "Play",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                Button(
-                    onClick = onToggleWatchlist,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.White.copy(alpha = 0.2f),
-                        contentColor = Color.White
-                    ),
-                    modifier = Modifier.height(48.dp)
-                ) {
-                    Text(
-                        text = if (isInWatchlist) "Remove from My List" else "+ My List",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                Button(
-                    onClick = onDismiss,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color.White.copy(alpha = 0.2f),
-                        contentColor = Color.White
-                    ),
-                    modifier = Modifier.height(48.dp)
-                ) {
-                    Text(
-                        text = "Back",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
+                        text = "Press DOWN for more like this",
+                        color = Color.White.copy(alpha = 0.6f),
+                        fontSize = 11.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
             }

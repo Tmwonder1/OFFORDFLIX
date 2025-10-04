@@ -32,7 +32,22 @@ data class VideoContent(
     val streamingUrl: String? = null,
     val availableQualities: List<VideoQuality> = emptyList(),
     val subtitleTracks: List<SubtitleTrack> = emptyList(),
-    val audioTracks: List<AudioTrack> = emptyList()
+    val audioTracks: List<AudioTrack> = emptyList(),
+    
+    // Cast and similar content
+    val cast: List<CastMember> = emptyList(),
+    val similarContent: List<VideoContent> = emptyList()
+)
+
+/**
+ * Cast member information.
+ */
+data class CastMember(
+    val id: Int,
+    val name: String,
+    val character: String,
+    val profileImageUrl: String? = null,
+    val order: Int = 0
 )
 
 /**
