@@ -5,6 +5,7 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -387,6 +388,7 @@ fun NetflixStyleMoviesScreen(
             ContentDetailsOverlay(
                 content = details,
                 isInWatchlist = uiState.watchlistMovies.any { it.id == details.id },
+                hasResume = false,
                 onPlay = {
                     viewModel.trackContentInteraction(details, InteractionType.WATCH)
                     onNavigateToPlayer(details)
@@ -576,6 +578,7 @@ private fun ContentRowOverlay(
 private fun ContentDetailsOverlay(
     content: VideoContent,
     isInWatchlist: Boolean,
+    hasResume: Boolean,
     onPlay: () -> Unit,
     onToggleWatchlist: () -> Unit,
     onDismiss: () -> Unit,
@@ -584,6 +587,16 @@ private fun ContentDetailsOverlay(
     val focusRequester = remember { FocusRequester() }
     var isExpanded by remember { mutableStateOf(false) }
     var similarFocusIndex by remember { mutableStateOf(0) }
+    var selectedActionIndex by remember { mutableStateOf(0) }
+
+    val actionLabels = remember(content.id, isInWatchlist, hasResume) {
+        buildList {
+            add(if (hasResume) "Resume" else "Play")
+            add("Play from beginning")
+            add("Remove from watch history")
+            add(if (isInWatchlist) "Remove from My List" else "+ Add to My List")
+        }
+    }
 
     // Ensure collapsed by default whenever a new content is shown in the overlay
     LaunchedEffect(content.id) {
@@ -595,6 +608,53 @@ private fun ContentDetailsOverlay(
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
     
     Box(modifier = Modifier.fillMaxSize()) {
+        val listState = rememberLazyListState()
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .padding(start = 48.dp)
+                .offset(y = 100.dp)
+                .widthIn(max = 520.dp)
+        ) {
+            LazyColumn(
+                state = listState,
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.heightIn(max = 180.dp),
+                contentPadding = PaddingValues(vertical = 12.dp)
+            ) {
+                itemsIndexed(actionLabels) { index, label ->
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(32.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (index == selectedActionIndex) Color.White.copy(alpha = 0.12f) else Color.Transparent)
+                            .padding(horizontal = 12.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        Text(text = label, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    }
+                }
+            }
+            if (listState.canScrollBackward) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(12.dp)
+                        .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.6f), Color.Transparent)))
+                )
+            }
+            if (listState.canScrollForward) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .fillMaxWidth()
+                        .height(12.dp)
+                        .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f))))
+                )
+            }
+        }
+
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -620,14 +680,22 @@ private fun ContentDetailsOverlay(
                             }
                             Key.DirectionDown -> {
                                 if (!isExpanded) {
-                                    isExpanded = true
-                                    similarFocusIndex = 0
-                                    true
+                                    if (selectedActionIndex < actionLabels.lastIndex) {
+                                        selectedActionIndex++
+                                        true
+                                    } else {
+                                        isExpanded = true
+                                        similarFocusIndex = 0
+                                        true
+                                    }
                                 } else false
                             }
                             Key.DirectionUp -> {
                                 if (isExpanded) {
                                     isExpanded = false
+                                    true
+                                } else if (selectedActionIndex > 0) {
+                                    selectedActionIndex--
                                     true
                                 } else false
                             }
@@ -654,7 +722,16 @@ private fun ContentDetailsOverlay(
                                         onSimilarClick(selected)
                                         true
                                     } else false
-                                } else false
+                                } else {
+                                    when (actionLabels[selectedActionIndex]) {
+                                        "Resume" -> { onPlay(); true }
+                                        "Play from beginning" -> { onPlay(); true }
+                                        "Seasons" -> { /* TODO: seasons */ true }
+                                        "Remove from watch history" -> { /* TODO: history removal */ true }
+                                        "+ Add to My List", "Remove from My List" -> { onToggleWatchlist(); true }
+                                        else -> false
+                                    }
+                                }
                             }
                             else -> false
                         }
